@@ -20,7 +20,11 @@ services:
       TZ: Asia/Tashkent
       PGTZ: Asia/Tashkent
     volumes:
-      - db-data:/var/lib/postgresql/data
+      # PG 18 dan boshlab mount /var/lib/postgresql da boʻlishi kerak
+      # (ilgari .../data edi) — obraz maʼlumotni versiyaga mos
+      # ichki papkaga oʻzi joylashtiradi va kelajakda pg_upgrade
+      # qilish oson boʻladi.
+      - db-data:/var/lib/postgresql
       - ./backups:/backups
     healthcheck:
       # app faqat baza QABUL QILISHGA tayyor boʻlgach ishga tushsin
