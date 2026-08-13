@@ -53,9 +53,6 @@ jobs:
 
       - run: npm ci
 
-      - name: Tiplarni tekshirish
-        run: npx tsc --noEmit
-
       - name: Jerebyovka mantiqi
         run: npm run verify:draw
 
@@ -71,7 +68,13 @@ jobs:
           npx tsx scripts/verify-numbering.ts
           node --import tsx --conditions=react-server scripts/verify-progression.ts
 
+      # Build tiplarni ham tekshiradi VA marshrut tiplarini
+      # (`PageProps`, `LayoutProps`) generatsiya qiladi — shuning uchun
+      # alohida `tsc` undan KEYIN ishlashi kerak.
       - run: npm run build
+
+      - name: Tiplarni tekshirish (sinov va skriptlar bilan birga)
+        run: npx tsc --noEmit
 
       - name: Brauzer sinovlari (E2E)
         run: |
