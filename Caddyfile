@@ -23,13 +23,14 @@
 		}
 	}
 
+	# Robot suratlari uchun. `request_body` — sayt darajasidagi
+	# direktiva, `reverse_proxy` ichida emas (Caddy 2).
+	request_body {
+		max_size 12MB
+	}
+
 	handle {
-		reverse_proxy app:3000 {
-			# Suratlar 3 MB gacha; zaxira bilan qoʻyamiz
-			request_body {
-				max_size 12MB
-			}
-		}
+		reverse_proxy app:3000
 	}
 
 	header {
