@@ -92,11 +92,18 @@ openssl rand -base64 32   # SESSION_SECRET
 
 ### Yangilash
 
-```bash
-git pull && ./scripts/deploy.sh
+Odatdagi yoʻl — **`git push`**: GitHub Actions sinovlardan oʻtkazadi, keyin
+serverga chiqaradi va serverdagi versiya push qilinganiga mos ekanini
+tekshiradi. Sinov yiqilsa deploy boʻlmaydi.
+
+Shoshilinch holat uchun (GitHub ishlamay qolsa) zaxira yoʻl — **sinovsiz**:
+
+```powershell
+.\scripts\deploy.ps1
 ```
 
-Baza maʼlumoti saqlanadi.
+Har ikkala yoʻlda ham migratsiyadan **oldin** alohida `pg_dump` olinadi.
+Zaxira olinmasa deploy toʻxtaydi — zaxirasiz migratsiya qilinmaydi.
 
 ---
 

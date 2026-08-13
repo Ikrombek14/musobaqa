@@ -27,6 +27,45 @@ step() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 step "Obraz yigʻilmoqda ($GIT_SHA)"
 docker compose build app </dev/null
 
+# ============================================================
+# Migratsiyadan OLDIN zaxira — maʼlumot yoʻqolmasligi kafolati.
+#
+# `backup` konteyneri har 10 daqiqada nusxa oladi, lekin migratsiya
+# aynan ikki nusxa orasida ishga tushsa, xato boʻlganda 10 daqiqalik
+# maʼlumot yoʻqoladi. Musobaqa kunida bu — oʻnlab yozilgan natija.
+# Shuning uchun har deploy'da, migratsiyadan avval alohida nusxa.
+#
+# Zaxira olinmasa deploy TOʻXTAYDI: zaxirasiz migratsiya qilishdan
+# koʻra deploy qilmagan yaxshi.
+# ============================================================
+step "Migratsiyadan oldin zaxira"
+set -a
+# shellcheck disable=SC1091
+. ./.env
+set +a
+
+mkdir -p backups
+BACKUP_FILE="backups/pre-migrate-$(date +%Y%m%d-%H%M%S).sql"
+
+if docker compose exec -T db pg_dump -U "${POSTGRES_USER:-musobaqa_app}" \
+	"${POSTGRES_DB:-musobaqa}" >"$BACKUP_FILE" 2>backups/last-error.log </dev/null; then
+	SIZE=$(wc -c <"$BACKUP_FILE")
+	if [ "$SIZE" -lt 100 ]; then
+		echo "  ✗ zaxira boʻsh chiqdi ($SIZE bayt) — migratsiya qilinmaydi"
+		exit 1
+	fi
+	echo "  ✓ $BACKUP_FILE · $SIZE bayt"
+else
+	echo "  ✗ zaxira olinmadi — deploy toʻxtatildi:"
+	tail -5 backups/last-error.log
+	exit 1
+fi
+
+# Oxirgi 30 ta migratsiya-oldi nusxasi saqlanadi
+ls -1t backups/pre-migrate-*.sql 2>/dev/null | tail -n +31 | while read -r old; do
+	rm -f "$old"
+done
+
 step "Migratsiyalar"
 # --build: `run` mavjud obrazni qayta ishlatadi, yangi migratsiya
 # eski obrazda boʻlmay jimgina oʻtkazib yuborilishi mumkin
