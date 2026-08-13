@@ -74,8 +74,10 @@ jobs:
             next-${{ hashFiles('package-lock.json') }}-
             next-
 
-      - name: Jerebyovka mantiqi
-        run: npm run verify:draw
+      - name: Jerebyovka va import mantiqi
+        run: |
+          npm run verify:draw
+          npm run verify:import
 
       - name: Baza tayyorlanmoqda
         run: |

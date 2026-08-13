@@ -91,11 +91,11 @@ test.describe("Check-in", () => {
     await page.getByLabel("Jamoa yoki ishtirokchi nomi").fill("zzqqxx-yoq");
     await expect(page.getByText("Hech narsa topilmadi")).toBeVisible();
 
+    // Forma soddalashtirilgan: faqat yoʻnalish va ishtirokchilar
     await page.getByRole("button", { name: /Roʻyxatda yoʻq/ }).click();
     await page.getByLabel("Yoʻnalish").selectOption("S");
-    await page.getByLabel("Jamoa nomi").fill("QA Sinov Jamoasi");
     await page.getByLabel(/Ishtirokchilar/).fill("Alisher Testov, Malika Sinovova");
-    await page.getByLabel(/Maktab/).fill("QA maktabi");
+    await page.getByLabel(/Jamoa nomi/).fill("QA Sinov Jamoasi");
     await page.getByRole("button", { name: /Qoʻshish va raqam berish/ }).click();
 
     await expect(page.getByRole("button", { name: "Suratsiz oʻtish" })).toBeVisible();

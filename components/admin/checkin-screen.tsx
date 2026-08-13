@@ -480,11 +480,18 @@ function WalkInForm({
           </select>
         </div>
 
-        <TextField name="name" label="Jamoa nomi" required />
-        <TextField name="members" label="Ishtirokchilar (vergul bilan)" />
-        <TextField name="school" label="Maktab / markaz" />
-        <TextField name="coach" label="Murabbiy" />
-        <TextField name="phone" label="Telefon" type="tel" />
+        {/* Stolda navbat turadi — faqat zarur maydonlar soʻraladi */}
+        <TextField
+          name="members"
+          label="Ishtirokchilar (vergul bilan)"
+          required
+          hint="Masalan: Alisher Toshmatov, Malika Rasulova"
+        />
+        <TextField
+          name="name"
+          label="Jamoa nomi"
+          hint="Boʻsh qoldirsangiz birinchi ishtirokchi ismi olinadi"
+        />
 
         {error && (
           <p
@@ -508,11 +515,13 @@ function TextField({
   label,
   type = "text",
   required,
+  hint,
 }: {
   name: string;
   label: string;
   type?: string;
   required?: boolean;
+  hint?: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -525,8 +534,14 @@ function TextField({
         name={name}
         type={type}
         required={required}
+        aria-describedby={hint ? `walkin-${name}-hint` : undefined}
         className="h-11 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-base outline-none focus:border-[var(--focus-ring)] focus:shadow-[0_0_0_3px_rgb(47_125_246/0.15)]"
       />
+      {hint && (
+        <p id={`walkin-${name}-hint`} className="text-xs text-[var(--text-muted)]">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

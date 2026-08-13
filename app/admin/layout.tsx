@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  FileSpreadsheet,
   Gavel,
   LayoutGrid,
   LogOut,
@@ -21,6 +22,7 @@ export const dynamic = "force-dynamic";
 const NAV = [
   { href: "/admin", label: "Boshqaruv", icon: LayoutGrid },
   { href: "/admin/checkin", label: "Check-in", icon: ScanLine },
+  { href: "/admin/import", label: "Import", icon: FileSpreadsheet },
   { href: "/admin/jamoalar", label: "Jamoalar", icon: Users },
   { href: "/admin/draw", label: "Jerebyovka", icon: Shuffle },
   { href: "/admin/juftliklar", label: "Juftliklar", icon: Swords },

@@ -13,18 +13,20 @@
     "db:migrate:ci": "tsx scripts/migrate.ts",
     "db:seed:ci": "tsx scripts/seed.ts",
     "verify:draw": "tsx scripts/verify-draw.ts",
+    "verify:import": "tsx scripts/verify-import.ts",
     "verify:numbering": "tsx --env-file=.env.local scripts/verify-numbering.ts",
     "verify:progression": "node --import tsx --conditions=react-server --env-file=.env.local scripts/verify-progression.ts",
     "start:e2e": "node --env-file=.env.local ./node_modules/next/dist/bin/next start -p 3100",
     "start:e2e:ci": "next start -p 3100",
     "e2e": "playwright test",
-    "verify": "npm run verify:draw && npm run verify:numbering && npm run verify:progression"
+    "verify": "npm run verify:draw && npm run verify:import && npm run verify:numbering && npm run verify:progression"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
+    "exceljs": "^4.4.0",
     "iron-session": "^8.0.4",
     "lucide-react": "^1.31.0",
     "next": "16.3.0",
@@ -39,7 +41,7 @@
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24.13.3",
     "@types/pg": "^8.21.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",

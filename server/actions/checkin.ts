@@ -82,15 +82,31 @@ export async function checkInTeam(rawTeamId: unknown): Promise<CheckInResult> {
    «Roʻyxatda yoʻq» — joyida qoʻshish
    ============================================================ */
 
+/**
+ * Roʻyxatdan oʻtkazish stolida faqat ikki narsa soʻraladi:
+ * yoʻnalish va ishtirokchilar. Jamoa nomi ixtiyoriy — koʻp jamoada
+ * nom umuman boʻlmaydi, stolda esa har bir ortiqcha maydon navbatni
+ * uzaytiradi.
+ */
 const walkInSchema = z.object({
   categoryCode: z.string().refine(isCategoryCode, "Yoʻnalish tanlanmagan"),
-  name: z.string().trim().min(2, "Jamoa nomi kamida 2 belgi"),
-  school: z.string().trim().max(120).optional().or(z.literal("")),
-  region: z.string().trim().max(120).optional().or(z.literal("")),
-  coach: z.string().trim().max(120).optional().or(z.literal("")),
-  phone: z.string().trim().max(32).optional().or(z.literal("")),
+  name: z.string().trim().max(120).optional().or(z.literal("")),
   members: z.string().trim().max(500).optional().or(z.literal("")),
 });
+
+/**
+ * Nom boʻsh boʻlsa nima koʻrsatiladi.
+ *
+ * Tabloda, hakam panelida va juftliklarda jamoa qandaydir nom bilan
+ * koʻrinishi kerak. Eng tushunarlisi — birinchi ishtirokchi ismi;
+ * u ham boʻlmasa raqamning oʻzi (`R12`).
+ */
+function resolveTeamName(name: string | undefined, members: string[]): string | null {
+  const trimmed = (name ?? "").trim();
+  if (trimmed) return trimmed;
+  if (members[0]) return members[0];
+  return null; // raqam berilgach oʻsha qoʻyiladi
+}
 
 export async function createWalkInTeam(
   _prev: CheckInResult | null,
@@ -105,30 +121,29 @@ export async function createWalkInTeam(
   }
   const input = parsed.data;
 
+  const members = (input.members ?? "")
+    .split(/[,\n]/)
+    .map((m) => m.trim())
+    .filter(Boolean);
+
+  if (members.length === 0 && !(input.name ?? "").trim()) {
+    return { ok: false, error: "Kamida ishtirokchi ismini yozing" };
+  }
+
   try {
     const result = await db.transaction(async (tx) => {
+      const resolved = resolveTeamName(input.name, members);
+
       const [team] = await tx
         .insert(schema.teams)
         .values({
           categoryCode: input.categoryCode,
-          name: input.name,
-          school: input.school || null,
-          region: input.region || null,
-          coach: input.coach || null,
-          phone: input.phone || null,
+          // Vaqtincha nom — raqam berilgach kerak boʻlsa almashtiriladi
+          name: resolved ?? "…",
           walkIn: true,
-          searchText: normalizeSearch(
-            [input.name, input.school, input.coach, input.region, input.members]
-              .filter(Boolean)
-              .join(" "),
-          ),
+          searchText: normalizeSearch([resolved, members.join(" ")].filter(Boolean).join(" ")),
         })
         .returning({ id: schema.teams.id });
-
-      const members = (input.members ?? "")
-        .split(/[,\n]/)
-        .map((m) => m.trim())
-        .filter(Boolean);
 
       for (const member of members) {
         await tx.insert(schema.participants).values({ teamId: team.id, fullName: member });
@@ -139,26 +154,35 @@ export async function createWalkInTeam(
       );
       const number = rows[0].allocate_team_number;
 
+      // Nom ham, ishtirokchi ham boʻlmasa — raqamning oʻzi nom boʻladi
+      const finalName = resolved ?? number;
+      if (!resolved) {
+        await tx
+          .update(schema.teams)
+          .set({ name: finalName, searchText: normalizeSearch(finalName) })
+          .where(eq(schema.teams.id, team.id));
+      }
+
       await tx.insert(schema.auditLog).values({
         actor: staff.name,
         action: "team.walkin",
         entity: "team",
         entityId: String(team.id),
-        after: { ...input, number },
+        after: { ...input, number, name: finalName },
       });
 
       await emit(tx, input.categoryCode, "team.checked_in", {
         teamId: team.id,
         number,
-        name: input.name,
+        name: finalName,
       });
 
-      return { teamId: team.id, number };
+      return { teamId: team.id, number, name: finalName };
     });
 
     revalidatePath("/admin/checkin");
     revalidatePath("/admin");
-    return { ok: true, teamId: result.teamId, number: result.number, name: input.name };
+    return { ok: true, teamId: result.teamId, number: result.number, name: result.name };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
