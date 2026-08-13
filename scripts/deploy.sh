@@ -31,6 +31,9 @@ secret=$(grep -E "^SESSION_SECRET=" .env | cut -d= -f2-)
 echo "  hammasi joyida"
 
 step "Obrazlar yigʻilmoqda"
+# Qaysi commit yigʻilayotgani obrazga yoziladi — /api/version da koʻrinadi
+export GIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 docker compose build
 
 step "Baza koʻtarilmoqda"
@@ -44,7 +47,11 @@ step "Migratsiyalar qoʻllanmoqda"
 docker compose run --rm --build tools npm run db:migrate:ci
 
 step "Ilova ishga tushmoqda"
-docker compose up -d app backup
+# --force-recreate SHART: obraz yangilangan boʻlsa ham `up -d`
+# konteynerni har doim qayta yaratmaydi — natijada eski kod ishlab
+# turaveradi va deploy muvaffaqiyatli boʻlib koʻrinadi.
+docker compose up -d backup
+docker compose up -d --force-recreate --no-deps app
 
 # 80/443 boʻsh boʻlsa oʻz Caddy'mizni ham koʻtaramiz. Band boʻlsa —
 # serverda boshqa reverse proxy bor, u `app` ning host portiga

@@ -122,16 +122,21 @@ jobs:
           ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Serverda yangilash
+        env:
+          GIT_SHA: ${{ github.sha }}
         run: |
-          ssh -o BatchMode=yes "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" bash -se <<'REMOTE'
+          ssh -o BatchMode=yes "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "GIT_SHA='${GIT_SHA}' bash -se" <<'REMOTE'
           set -euo pipefail
           cd /opt/musobaqa
+
+          export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
           echo "▸ Kod yangilanmoqda"
           git fetch --all --prune
           git reset --hard origin/main
 
-          echo "▸ Obraz yigʻilmoqda"
+          echo "▸ Obraz yigʻilmoqda ($GIT_SHA)"
           docker compose build app
 
           # --build SHART: `docker compose run` mavjud obrazni qayta
@@ -140,21 +145,36 @@ jobs:
           echo "▸ Migratsiyalar"
           docker compose run --rm --build tools npm run db:migrate:ci
 
+          # --force-recreate SHART: obraz yangilangan boʻlsa ham
+          # `up -d` konteynerni har doim ham qayta yaratmaydi. Busiz
+          # deploy «muvaffaqiyatli» deb koʻrinib, eski kod ishlab
+          # turaveradi.
           echo "▸ Ilova qayta ishga tushmoqda"
-          docker compose up -d db app backup
+          docker compose up -d db backup
+          docker compose up -d --force-recreate --no-deps app
 
           echo "▸ Holat tekshirilmoqda"
           for i in $(seq 1 30); do
             if docker compose exec -T app node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
               echo "✓ ilova javob bermoqda"
-              exit 0
+              break
             fi
+            [ "$i" -eq 30 ] && { echo "✗ ilova koʻtarilmadi:"; docker compose logs --tail=50 app; exit 1; }
             sleep 2
           done
 
-          echo "✗ ilova koʻtarilmadi — loglar:"
-          docker compose logs --tail=50 app
-          exit 1
+          # Eng muhim tekshiruv: serverda AYNAN push qilingan versiya
+          # turibdimi? Bir marta konteyner qayta yaratilmay, eski kod
+          # qolib ketgan va buni faqat qoʻlda tekshirganda topganmiz.
+          echo "▸ Versiya tekshirilmoqda"
+          RUNNING=$(docker compose exec -T app node -e "fetch('http://127.0.0.1:3000/api/version').then(r=>r.json()).then(v=>console.log(v.sha))")
+          echo "  kutilgan: $GIT_SHA"
+          echo "  serverda: $RUNNING"
+          if [ "$RUNNING" != "$GIT_SHA" ]; then
+            echo "✗ ESKI VERSIYA ISHLAB TURIBDI — deploy amalda boʻlmadi"
+            exit 1
+          fi
+          echo "✓ versiya mos"
           REMOTE
 
       - name: Eski obrazlarni tozalash

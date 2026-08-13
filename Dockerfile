@@ -40,6 +40,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+# Qaysi commit yigʻilgani — /api/version orqali koʻrinadi.
+# Deploy'dan keyin CI shu qiymatni tekshiradi.
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV BUILD_SHA=$GIT_SHA
+ENV BUILD_TIME=$BUILD_TIME
+
 RUN apk add --no-cache postgresql18-client tini \
   && addgroup -g 1001 -S nodejs \
   && adduser -u 1001 -S nextjs -G nodejs
