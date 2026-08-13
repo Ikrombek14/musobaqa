@@ -77,10 +77,10 @@ export default async function LiveIndexPage() {
                   {cat.format === "group_playoff" &&
                     "Guruh bosqichi va pleyoff. Gʻalaba 3, durang 1 ochko."}
                   {cat.format === "single_elim" &&
-                    cat.code === "S" &&
+                    (cat.code === "S" || cat.code === "LS") &&
                     "Olib tashlash, 3 tadan 2 (best of 3)."}
                   {cat.format === "single_elim" &&
-                    cat.code === "RR" &&
+                    cat.code === "RC" &&
                     "Olib tashlash, bitta raundda yonma-yon poyga."}
                   {cat.format === "time_trial" &&
                     "2 urinish, eng yaxshisi. Yoʻldan chiqish +5 soniya."}

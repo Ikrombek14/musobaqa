@@ -296,6 +296,47 @@ export const auditLog = pgTable(
 );
 
 /* ============================================================
+   Yorliqlar — oldindan chop etilgan raqam + QR
+
+   Musobaqa kunidan oldin har yo'nalish uchun yorliqlar tayyorlanadi
+   (F1…F50, S1…S50, LS1…LS50, LF1…LF30, RC1…RC50) va chop etiladi.
+   Bola kelganda admin robotga qog'ozni yopishtiradi va shu yorliqni
+   jamoaga biriktiradi — raqam avtomatik berilmaydi, jismoniy
+   qog'ozdan keladi.
+   ============================================================ */
+export const tags = pgTable(
+  "tags",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    categoryCode: text("category_code")
+      .notNull()
+      .references(() => categories.code, { onDelete: "restrict" }),
+    /** "F12" — chop etilgan qog'ozdagi kod */
+    code: text("code").notNull(),
+    /** Tartib raqami — saralash uchun */
+    number: integer("number").notNull(),
+    /** Nechta nusxa chop etiladi (robofutbolda 2 ta robot) */
+    copies: integer("copies").notNull().default(1),
+
+    teamId: bigint("team_id", { mode: "number" }).references(() => teams.id, {
+      onDelete: "set null",
+    }),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }),
+    assignedBy: text("assigned_by"),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tags_code_key").on(t.categoryCode, t.code),
+    // Bitta jamoada bitta yorliq
+    uniqueIndex("tags_team_key").on(t.teamId).where(sql`${t.teamId} is not null`),
+    index("tags_category_idx").on(t.categoryCode, t.number),
+  ],
+);
+
+/* ============================================================
    Realtime hodisalar oqimi
    Har bir yozuv o'zgarishi shu jadvalga qator qo'shadi.
    Trigger NOTIFY yuboradi → Node eshitadi → SSE orqali tarqatadi.

@@ -73,7 +73,7 @@ const rng = makeRng(20260816);
 const pick = <T,>(list: readonly T[]): T => list[Math.floor(rng() * list.length)];
 
 /** Har yo'nalishga nechta jamoa — TZ dagi nisbat: yarmi robofutbolda */
-const PLAN: Record<string, number> = { R: 24, S: 16, L: 12, RR: 8 };
+const PLAN: Record<string, number> = { F: 24, S: 16, LS: 12, LF: 10, RC: 8 };
 /** Nechtasi check-in qilinmagan holda qoldiriladi (jonli demo uchun) */
 const LEAVE_UNCHECKED = 2;
 
@@ -95,12 +95,12 @@ async function main() {
           cat.name,
           cat.format,
           4,
-          cat.code === "R" ? 5 : 3,
-          cat.code === "R" ? 3 : 2,
+          cat.code === "F" ? 5 : 3,
+          cat.code === "F" ? 3 : 2,
         ],
       );
     }
-    console.log("  Yo'nalishlar: 4 ta");
+    console.log(`  Yo'nalishlar: ${CATEGORY_LIST.length} ta`);
 
     // 2) Eski test ma'lumotini tozalash
     const { rows: existing } = await client.query<{ count: string }>(
@@ -116,7 +116,13 @@ async function main() {
     }
 
     await client.query("truncate events, matches, runs, group_teams, groups, draws restart identity cascade");
-    await client.query("truncate robots, participants, teams restart identity cascade");
+
+    // ⚠️ `truncate teams ... cascade` YORLIQLARNI HAM o'chiradi: tags
+    // jadvali teams ga bog'langan. Yorliqlar esa chop etilgan qog'ozlarga
+    // mos kelishi kerak — ular hech qachon o'chirilmaydi, faqat bo'shatiladi.
+    await client.query("update tags set team_id = null, assigned_at = null, assigned_by = null");
+    await client.query("delete from teams");
+    await client.query("alter sequence teams_id_seq restart with 1");
     await client.query("update categories set last_number = 0, draw_locked = false");
     console.log("  Eski ma'lumot tozalandi");
 
@@ -125,7 +131,7 @@ async function main() {
     const judgePins: string[] = [];
     let pinCounter = 1000;
     for (const cat of CATEGORY_LIST) {
-      const fields = cat.code === "R" ? 3 : 2;
+      const fields = cat.code === "F" ? 3 : 2;
       for (let field = 1; field <= fields; field++) {
         const pin = String(++pinCounter);
         const pinHash = await hash(pin);
@@ -182,9 +188,24 @@ async function main() {
           );
         }
 
-        // Ko'pchiligi check-in qilingan, oxirgi bir nechtasi qoldiriladi
+        // Ko'pchiligi check-in qilingan: bo'sh yorliq biriktiriladi
         if (i < uncheckedFrom) {
-          await client.query("select allocate_team_number($1, $2)", [teamId, "seed"]);
+          const { rows: tagRows } = await client.query<{ id: number; code: string; number: number }>(
+            `select id, code, number from tags
+              where category_code = $1 and team_id is null
+              order by number limit 1`,
+            [cat.code],
+          );
+          if (tagRows[0]) {
+            await client.query(
+              `update tags set team_id = $1, assigned_at = now(), assigned_by = 'seed' where id = $2`,
+              [teamId, tagRows[0].id],
+            );
+            await client.query(
+              `update teams set number = $1, number_seq = $2, checked_in_at = now(), checked_in_by = 'seed' where id = $3`,
+              [tagRows[0].code, tagRows[0].number, teamId],
+            );
+          }
         }
         total++;
       }

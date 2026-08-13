@@ -10,13 +10,13 @@ test.describe("Admin — sozlamalar", () => {
     await page.goto("/admin/sozlamalar");
 
     const card = page.getByRole("region", { name: "Robofutbol" });
-    await card.locator("#fields-R").fill("4");
+    await card.locator("#fields-F").fill("4");
     await card.getByRole("button", { name: "Saqlash", exact: true }).click();
     await expect(card.getByText(/Saqlandi/)).toBeVisible();
 
     await page.reload();
     await expect(
-      page.getByRole("region", { name: "Robofutbol" }).locator("#fields-R"),
+      page.getByRole("region", { name: "Robofutbol" }).locator("#fields-F"),
     ).toHaveValue("4");
 
     expect(errors, errors.join("\n")).toHaveLength(0);
@@ -30,7 +30,7 @@ test.describe("Admin — sozlamalar", () => {
     const duration = card.locator("aside p.tnum").first();
     const before = await duration.textContent();
 
-    await card.locator("#mins-R").fill("20");
+    await card.locator("#mins-F").fill("20");
     await expect(duration).not.toHaveText(before ?? "");
   });
 
@@ -45,7 +45,7 @@ test.describe("Admin — sozlamalar", () => {
 
     await page.goto("/admin/sozlamalar");
     const card = page.getByRole("region", { name: "Robofutbol" });
-    await expect(card.locator("#gsize-R")).toBeDisabled();
+    await expect(card.locator("#gsize-F")).toBeDisabled();
     await expect(card.getByText("Jerebyovka oʻtkazilgan — oʻzgartirib boʻlmaydi")).toBeVisible();
   });
 });
@@ -115,7 +115,7 @@ test.describe("Admin — jerebyovka va juftliklar", () => {
     await loginAdmin(page);
     await page.goto("/admin/draw");
 
-    const card = page.getByRole("region", { name: "Sumo" });
+    const card = page.getByRole("region", { name: "Arduino Robosumo" });
     await card.getByRole("button", { name: "Jerebyovka oʻtkazish" }).click();
     await card.getByRole("button", { name: "Ha, oʻtkazilsin" }).click();
 
@@ -131,7 +131,7 @@ test.describe("Admin — jerebyovka va juftliklar", () => {
   test("ikkinchi marta jerebyovka oʻtkazib boʻlmaydi", async ({ page }) => {
     await loginAdmin(page);
     await page.goto("/admin/draw");
-    const card = page.getByRole("region", { name: "Sumo" });
+    const card = page.getByRole("region", { name: "Arduino Robosumo" });
     await expect(card.getByText("Oʻtkazilgan")).toBeVisible();
     await expect(card.getByRole("button", { name: "Jerebyovka oʻtkazish" })).toBeHidden();
   });
@@ -174,7 +174,7 @@ test.describe("Admin — jamoalar", () => {
     await loginAdmin(page);
     await page.goto("/admin/jamoalar");
 
-    await page.getByRole("button", { name: "Sumo", exact: true }).click();
+    await page.getByRole("button", { name: "Arduino Robosumo", exact: true }).click();
     await expect(page).toHaveURL(/category=S/);
 
     await page.getByRole("button", { name: "Kutilmoqda" }).click();
@@ -187,7 +187,7 @@ test.describe("Admin — jamoalar", () => {
   test("jamoa tahrirlanadi va saqlanadi", async ({ page }) => {
     const { errors } = watchForErrors(page);
     await loginAdmin(page);
-    await page.goto("/admin/jamoalar?category=L");
+    await page.goto("/admin/jamoalar?category=LF");
 
     await page.getByRole("button", { name: "Tahrirlash" }).first().click();
     await page.getByLabel("Murabbiy").fill("QA Murabbiy");
@@ -202,7 +202,7 @@ test.describe("Admin — jamoalar", () => {
 
   test("jadvalga tushgan jamoani oʻchirib boʻlmaydi", async ({ page }) => {
     await loginAdmin(page);
-    await page.goto("/admin/jamoalar?category=R&status=checked");
+    await page.goto("/admin/jamoalar?category=F&status=checked");
 
     const row = page.getByRole("row").nth(1);
     await row.getByRole("button", { name: "Oʻchirish" }).click();

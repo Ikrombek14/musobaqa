@@ -344,7 +344,7 @@ function MatchCard({
                 />
               )}
 
-              {categoryCode === "S" && (
+              {(categoryCode === "S" || categoryCode === "LS") && (
                 <SumoControls
                   match={match}
                   pending={pending}
@@ -371,7 +371,7 @@ function MatchCard({
                 />
               )}
 
-              {categoryCode === "RR" && (
+              {categoryCode === "RC" && (
                 <RaceControls
                   match={match}
                   pending={pending}

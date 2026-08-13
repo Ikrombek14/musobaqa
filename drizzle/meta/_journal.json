@@ -29,6 +29,20 @@
       "when": 1786595382390,
       "tag": "0003_seed_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786619016810,
+      "tag": "0004_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786619031893,
+      "tag": "0005_categories_v2",
+      "breakpoints": true
     }
   ]
 }

@@ -23,20 +23,20 @@ function check(label: string, ok: boolean, detail = "") {
 /* ---------------- Yo'nalishni tanish ---------------- */
 console.log("\nYoʻnalishni tanish");
 const CASES: [string, string | null][] = [
-  ["Robofutbol", "R"],
-  ["robofutbol", "R"],
-  ["ROBO FUTBOL", "R"],
-  ["futbol", "R"],
-  ["R", "R"],
-  ["Sumo", "S"],
-  ["robosumo", "S"],
+  ["Robofutbol", "F"],
+  ["robofutbol", "F"],
+  ["ROBO FUTBOL", "F"],
+  ["futbol", "F"],
+  ["F", "F"],
+  ["Arduino Robosumo", "S"],
+  ["Lego Robosumo", "LS"],
   ["S", "S"],
-  ["Linefollower", "L"],
-  ["line follower", "L"],
-  ["chiziq", "L"],
-  ["Robrace", "RR"],
-  ["poyga", "RR"],
-  ["RR", "RR"],
+  ["Linefollower", "LF"],
+  ["line follower", "LF"],
+  ["chiziq", "LF"],
+  ["Roborace", "RC"],
+  ["poyga", "RC"],
+  ["RC", "RC"],
   ["", null],
   ["shaxmat", null],
 ];
@@ -91,7 +91,7 @@ console.log("\nQatorlarni tayyorlash");
 
   const prepared = prepareRows(rows, mapping);
 
-  check("1-qator: yoʻnalish R", prepared[0].categoryCode === "R");
+  check("1-qator: yoʻnalish F", prepared[0].categoryCode === "F");
   check("1-qator: 2 ishtirokchi ajratildi", prepared[0].members.length === 2, String(prepared[0].members.length));
   check("1-qator: muammo yoʻq", prepared[0].problem === null, prepared[0].problem ?? "");
 

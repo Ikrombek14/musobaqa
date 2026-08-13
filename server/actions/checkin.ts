@@ -36,43 +36,23 @@ export async function checkInTeam(rawTeamId: unknown): Promise<CheckInResult> {
   if (!staff) return { ok: false, error: "Qayta kiring" };
 
   const teamId = toId(rawTeamId);
-  if (teamId === null) {
-    return { ok: false, error: "Notoʻgʻri jamoa" };
-  }
+  if (teamId === null) return { ok: false, error: "Notoʻgʻri jamoa" };
 
   try {
-    const result = await db.transaction(async (tx) => {
-      const { rows } = await tx.execute<{ allocate_team_number: string }>(
-        sql`select allocate_team_number(${teamId}, ${staff.name})`,
-      );
-      const number = rows[0]?.allocate_team_number;
-      if (!number) throw new Error("Raqam berilmadi");
+    const [team] = await db
+      .select({
+        name: schema.teams.name,
+        number: schema.teams.number,
+        categoryCode: schema.teams.categoryCode,
+      })
+      .from(schema.teams)
+      .where(eq(schema.teams.id, teamId));
 
-      const [team] = await tx
-        .select({ name: schema.teams.name, categoryCode: schema.teams.categoryCode })
-        .from(schema.teams)
-        .where(eq(schema.teams.id, teamId));
+    if (!team) return { ok: false, error: "Jamoa topilmadi" };
 
-      await tx.insert(schema.auditLog).values({
-        actor: staff.name,
-        action: "team.checkin",
-        entity: "team",
-        entityId: String(teamId),
-        after: { number },
-      });
-
-      await emit(tx, team.categoryCode, "team.checked_in", {
-        teamId,
-        number,
-        name: team.name,
-      });
-
-      return { number, name: team.name };
-    });
-
-    revalidatePath("/admin/checkin");
-    revalidatePath("/admin");
-    return { ok: true, teamId, number: result.number, name: result.name };
+    // Raqam avtomatik BERILMAYDI — u chop etilgan yorliqdan keladi.
+    // Bu qadam faqat «keldi» deb belgilaydi, keyin yorliq biriktiriladi.
+    return { ok: true, teamId, number: team.number ?? "", name: team.name };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -149,13 +129,8 @@ export async function createWalkInTeam(
         await tx.insert(schema.participants).values({ teamId: team.id, fullName: member });
       }
 
-      const { rows } = await tx.execute<{ allocate_team_number: string }>(
-        sql`select allocate_team_number(${team.id}, ${staff.name})`,
-      );
-      const number = rows[0].allocate_team_number;
-
-      // Nom ham, ishtirokchi ham boʻlmasa — raqamning oʻzi nom boʻladi
-      const finalName = resolved ?? number;
+      // Raqam bu yerda berilmaydi — keyingi qadamda yorliq biriktiriladi
+      const finalName = resolved ?? `Jamoa ${team.id}`;
       if (!resolved) {
         await tx
           .update(schema.teams)
@@ -168,21 +143,15 @@ export async function createWalkInTeam(
         action: "team.walkin",
         entity: "team",
         entityId: String(team.id),
-        after: { ...input, number, name: finalName },
+        after: { ...input, name: finalName },
       });
 
-      await emit(tx, input.categoryCode, "team.checked_in", {
-        teamId: team.id,
-        number,
-        name: finalName,
-      });
-
-      return { teamId: team.id, number, name: finalName };
+      return { teamId: team.id, name: finalName };
     });
 
     revalidatePath("/admin/checkin");
     revalidatePath("/admin");
-    return { ok: true, teamId: result.teamId, number: result.number, name: result.name };
+    return { ok: true, teamId: result.teamId, number: "", name: result.name };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

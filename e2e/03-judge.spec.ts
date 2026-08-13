@@ -21,7 +21,7 @@ async function setupCategory(
 
   const card = page.getByRole("region", { name: categoryName });
   await card.locator(`#${fieldsSliderId}`).fill("1");
-  if (options.groupSize) await card.locator("#gsize-R").fill(String(options.groupSize));
+  if (options.groupSize) await card.locator("#gsize-F").fill(String(options.groupSize));
   await card.getByRole("button", { name: "Saqlash", exact: true }).click();
   await expect(card.getByText(/Saqlandi/)).toBeVisible();
 
@@ -63,7 +63,7 @@ test.describe("Hakam — kirish", () => {
     await page.getByLabel("PIN kod").fill(PINS.S1);
     await page.getByRole("button", { name: "Kirish" }).click();
     await expect(page.getByRole("button", { name: "Chiqish" })).toBeVisible();
-    await expect(page.getByText("Sumo", { exact: true })).toBeVisible();
+    await expect(page.getByText("Arduino Robosumo", { exact: true })).toBeVisible();
   });
 
   test("hakam faqat oʻz maydonini koʻradi", async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe("Hakam — kirish", () => {
 test.describe("Hakam — sumo (best of 3)", () => {
   test("2-gʻalabada oʻzi yopiladi va «Bekor qilish» koʻrinadi", async ({ page }) => {
     const { errors } = watchForErrors(page);
-    await setupCategory(page, "Sumo", "fields-S");
+    await setupCategory(page, "Arduino Robosumo", "fields-S");
     await loginJudge(page, PINS.S1);
 
     const card = nextMatchCard(page);
@@ -166,7 +166,7 @@ test.describe("Hakam — robofutbol: guruh tugadi → pleyoff OʻZI tuziladi", (
     const { errors } = watchForErrors(page);
 
     // 3 talik guruh — oʻyin soni kam, mexanizm oʻsha
-    await setupCategory(page, "Robofutbol", "fields-R", { groupSize: 3 });
+    await setupCategory(page, "Robofutbol", "fields-F", { groupSize: 3 });
     await loginJudge(page, PINS.R1);
 
     let played = 0;
@@ -269,7 +269,7 @@ test.describe("Hakam — linefollower", () => {
 test.describe("Hakam — robrace", () => {
   test("gʻolib tanlanadi, vaqt ixtiyoriy, bekor qilish bor", async ({ page }) => {
     const { errors } = watchForErrors(page);
-    await setupCategory(page, "Robrace", "fields-RR");
+    await setupCategory(page, "Roborace", "fields-RR");
     await loginJudge(page, PINS.RR1);
 
     const card = nextMatchCard(page);

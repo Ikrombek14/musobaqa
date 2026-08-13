@@ -47,7 +47,7 @@ test.describe("Check-in", () => {
 
     // Raqam katta shrift bilan
     await expect(page.getByText("Roʻyxatdan oʻtdi")).toBeVisible();
-    await expect(page.getByText(/^R\d+$/)).toBeVisible();
+    await expect(page.getByText(/^F\d+$/)).toBeVisible();
 
     expect(errors, errors.join("\n")).toHaveLength(0);
   });
@@ -78,7 +78,7 @@ test.describe("Check-in", () => {
 
     await page.getByRole("button", { name: "Suratsiz oʻtish" }).click();
     // Idempotent: oʻsha eski raqam qaytadi, yangisi berilmaydi
-    await expect(page.getByText(/^R\d+$/)).toBeVisible();
+    await expect(page.getByText(/^F\d+$/)).toBeVisible();
 
     expect(errors, errors.join("\n")).toHaveLength(0);
   });

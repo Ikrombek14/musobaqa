@@ -9,6 +9,7 @@ import {
   Settings,
   Shuffle,
   Swords,
+  Tags,
   Users,
 } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
@@ -27,6 +28,7 @@ const NAV = [
   { href: "/admin/draw", label: "Jerebyovka", icon: Shuffle },
   { href: "/admin/juftliklar", label: "Juftliklar", icon: Swords },
   { href: "/admin/hakamlar", label: "Hakamlar", icon: Gavel },
+  { href: "/admin/raqamlar", label: "Yorliqlar", icon: Tags },
   { href: "/admin/qr", label: "QR kodlar", icon: QrCode },
   { href: "/admin/sozlamalar", label: "Sozlamalar", icon: Settings },
 ] as const;

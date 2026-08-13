@@ -157,7 +157,7 @@ async function testSingleElim() {
    2. Guruh → pleyoff avtomatik tuzilishi
    ============================================================ */
 async function testGroupToPlayoff() {
-  const code: CategoryCode = "R";
+  const code: CategoryCode = "F";
   console.log("\nRobofutbol — guruh bosqichi → avtomatik pleyoff");
   await cleanup(code);
 
@@ -294,7 +294,7 @@ async function testGroupToPlayoff() {
    3. Maydon sonini oʻzgartirish
    ============================================================ */
 async function testFieldChange() {
-  const code: CategoryCode = "RR";
+  const code: CategoryCode = "RC";
   console.log("\nRobrace — maydon sonini musobaqa davomida oʻzgartirish");
   await cleanup(code);
 

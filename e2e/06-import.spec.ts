@@ -153,14 +153,14 @@ test.describe("Roʻyxatdan oʻtkazish formasi soddalashtirilgan", () => {
     await page.getByLabel("Jamoa yoki ishtirokchi nomi").fill("zzqqxx-yoq");
     await page.getByRole("button", { name: /Roʻyxatda yoʻq/ }).click();
 
-    await page.getByLabel("Yoʻnalish").selectOption("RR");
+    await page.getByLabel("Yoʻnalish").selectOption("RC");
     await page.getByLabel(/Ishtirokchilar/).fill("Nomsiz Ishtirokchi, Ikkinchi Bola");
     await page.getByRole("button", { name: /Qoʻshish va raqam berish/ }).click();
 
     await expect(page.getByRole("button", { name: "Suratsiz oʻtish" })).toBeVisible();
     await page.getByRole("button", { name: "Suratsiz oʻtish" }).click();
 
-    await expect(page.getByText(/^RR\d+$/)).toBeVisible();
+    await expect(page.getByText(/^RC\d+$/)).toBeVisible();
     await expect(page.getByText("Nomsiz Ishtirokchi")).toBeVisible();
 
     expect(errors, errors.join("\n")).toHaveLength(0);

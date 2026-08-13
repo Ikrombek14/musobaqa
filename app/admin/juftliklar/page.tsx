@@ -14,7 +14,7 @@ export default async function PairingsPage({ searchParams }: PageProps<"/admin/j
 
   const sp = await searchParams;
   const slug = typeof sp.yonalish === "string" ? sp.yonalish : "";
-  const category = categoryBySlug(slug) ?? CATEGORIES.R;
+  const category = categoryBySlug(slug) ?? CATEGORIES.F;
 
   const data = await getPairings(category.code);
 

@@ -10,11 +10,12 @@ import {
   searchTeamsAction,
   type CheckInResult,
 } from "@/server/actions/checkin";
+import { assignTag, nextFreeTag } from "@/server/actions/tags";
 import type { SearchHit } from "@/server/queries/competition";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, EmptyState, TeamNumber } from "@/components/ui/primitives";
 
-type Step = "search" | "confirm" | "photo" | "done";
+type Step = "search" | "confirm" | "tag" | "photo" | "done";
 
 /**
  * Check-in — uch qadam, ~25 soniya.
@@ -29,6 +30,8 @@ export function CheckInScreen() {
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<SearchHit | null>(null);
+  /** Yorliq qadami uchun yoʻnalish — roʻyxatdan ham, yangi jamoadan ham keladi */
+  const [tagCategory, setTagCategory] = useState<string | null>(null);
   const [result, setResult] = useState<CheckInResult | null>(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -58,6 +61,7 @@ export function CheckInScreen() {
     setQuery("");
     setHits([]);
     setSelected(null);
+    setTagCategory(null);
     setResult(null);
     setWalkInOpen(false);
     inputRef.current?.focus();
@@ -67,18 +71,19 @@ export function CheckInScreen() {
     startTransition(async () => {
       const res = await checkInTeam(team.id);
       setResult(res);
-      if (res.ok) setStep("photo");
+      if (res.ok) {
+        setTagCategory(team.categoryCode);
+        setStep("tag");
+      }
     });
   };
 
-  /* ---------------- 3-qadam: raqam ---------------- */
+  /* ---------------- 4-qadam: raqam koʻrsatiladi ---------------- */
   if (step === "done" && result?.ok) {
-    return (
-      <NumberReveal result={result} onNext={reset} />
-    );
+    return <NumberReveal result={result} onNext={reset} />;
   }
 
-  /* ---------------- 2.5-qadam: surat ---------------- */
+  /* ---------------- 3-qadam: surat ---------------- */
   if (step === "photo" && result?.ok) {
     return (
       <PhotoStep
@@ -87,6 +92,22 @@ export function CheckInScreen() {
         number={result.number}
         onDone={() => setStep("done")}
         onSkip={() => setStep("done")}
+      />
+    );
+  }
+
+  /* ---------------- 2.5-qadam: yorliqni biriktirish ---------------- */
+  if (step === "tag" && result?.ok && tagCategory) {
+    return (
+      <TagStep
+        teamId={result.teamId}
+        teamName={result.name}
+        categoryCode={tagCategory}
+        onDone={(code) => {
+          setResult({ ...result, number: code });
+          setStep("photo");
+        }}
+        onBack={() => setStep(selected ? "confirm" : "search")}
       />
     );
   }
@@ -140,7 +161,7 @@ export function CheckInScreen() {
               onClick={() => confirmArrival(selected)}
             >
               <Check className="size-5" aria-hidden="true" />
-              Keldi
+              {selected.number ? "Yorliqni almashtirish" : "Keldi"}
             </Button>
             <Button variant="secondary" size="xl" onClick={reset} disabled={pending}>
               Orqaga
@@ -168,7 +189,7 @@ export function CheckInScreen() {
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Jamoa nomi, maktab yoki murabbiy…"
+          placeholder="Bolaning ismi, familiyasi yoki jamoa nomi…"
           className="h-14 w-full rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] pl-12 pr-4 text-base outline-none transition-shadow focus:border-[var(--focus-ring)] focus:shadow-[0_0_0_3px_rgb(47_125_246/0.15)]"
         />
       </div>
@@ -178,7 +199,7 @@ export function CheckInScreen() {
           <EmptyState
             icon={<Search className="size-8" />}
             title="Jamoa nomini yozishni boshlang"
-            hint="2 harfdan natija chiqadi. Apostrof va katta harf ahamiyatsiz — «ozbek» ham «Oʻzbek» ni topadi."
+            hint="Bolaning ismi yoki familiyasini yozing — 2 harfdan natija chiqadi. Apostrof va katta harf ahamiyatsiz."
           />
         ) : searching && hits.length === 0 ? (
           <div className="flex flex-col gap-2 p-3">
@@ -239,10 +260,11 @@ export function CheckInScreen() {
       {walkInOpen && (
         <WalkInForm
           onClose={() => setWalkInOpen(false)}
-          onCreated={(res) => {
+          onCreated={(res, categoryCode) => {
             setResult(res);
             setWalkInOpen(false);
-            setStep("photo");
+            setTagCategory(categoryCode);
+            setStep("tag");
           }}
         />
       )}
@@ -293,6 +315,124 @@ function NumberReveal({
       <p className="text-xs text-[var(--text-subtle)]">
         Enter tugmasi ham keyingisiga oʻtkazadi
       </p>
+    </div>
+  );
+}
+
+/* ============================================================
+   Yorliqni biriktirish
+
+   Admin robotga chop etilgan qogʻozni yopishtiradi va shu koddagi
+   yorliqni jamoaga bogʻlaydi. Raqam avtomatik berilmaydi — u
+   jismoniy qogʻozdan keladi, shuning uchun tizim taxmin qilmaydi.
+   ============================================================ */
+function TagStep({
+  teamId,
+  teamName,
+  categoryCode,
+  onDone,
+  onBack,
+}: {
+  teamId: number;
+  teamName: string;
+  categoryCode: string;
+  onDone: (code: string) => void;
+  onBack: () => void;
+}) {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const category = isCategoryCode(categoryCode) ? CATEGORIES[categoryCode] : null;
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    // Boʻsh yorliqni taklif qilamiz — admin qaysi qogʻozni olishni biladi
+    nextFreeTag(categoryCode).then(setSuggestion).catch(() => {});
+  }, [categoryCode]);
+
+  const submit = () => {
+    if (!code.trim()) return;
+    startTransition(async () => {
+      setError(null);
+      const res = await assignTag(teamId, code);
+      if (res.ok) onDone(res.code);
+      else setError(res.error);
+    });
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-xl">
+      <Card className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {category?.name ?? categoryCode}
+            </p>
+            <h2 className="mt-1 text-xl font-bold">{teamName}</h2>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            Orqaga
+          </Button>
+        </div>
+
+        <p className="mt-4 text-sm text-[var(--text-muted)]">
+          Robotga yopishtirilgan qogʻozdagi kodni kiriting.
+        </p>
+
+        <div className="mt-3 flex flex-col gap-2">
+          <label htmlFor="tag-code" className="sr-only">
+            Yorliq kodi
+          </label>
+          <input
+            id="tag-code"
+            ref={inputRef}
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+            placeholder={category ? `${category.prefix}12` : "F12"}
+            autoComplete="off"
+            autoCapitalize="characters"
+            className="tnum h-16 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] px-4 text-center text-3xl font-bold uppercase tracking-widest outline-none focus:border-[var(--focus-ring)] focus:shadow-[0_0_0_3px_rgb(47_125_246/0.15)]"
+          />
+
+          {suggestion && !code && (
+            <button
+              type="button"
+              onClick={() => setCode(suggestion)}
+              className="self-start text-sm text-[var(--text-muted)] underline-offset-4 hover:text-[var(--text)] hover:underline"
+            >
+              Boʻsh yorliq: <span className="tnum font-bold">{suggestion}</span> — bosing
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <p
+            role="alert"
+            className="mt-3 rounded-[var(--radius-md)] bg-[var(--danger-soft)] px-3 py-2 text-sm font-medium text-[var(--danger)]"
+          >
+            {error}
+          </p>
+        )}
+
+        <Button
+          variant="primary"
+          size="xl"
+          block
+          className="mt-4"
+          loading={pending}
+          disabled={!code.trim()}
+          onClick={submit}
+        >
+          <Check className="size-5" aria-hidden="true" />
+          Biriktirish
+        </Button>
+      </Card>
     </div>
   );
 }
@@ -434,7 +574,10 @@ function WalkInForm({
   onCreated,
 }: {
   onClose: () => void;
-  onCreated: (result: Extract<CheckInResult, { ok: true }>) => void;
+  onCreated: (
+    result: Extract<CheckInResult, { ok: true }>,
+    categoryCode: string,
+  ) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -453,7 +596,7 @@ function WalkInForm({
         action={(formData) =>
           startTransition(async () => {
             const res = await createWalkInTeam(null, formData);
-            if (res.ok) onCreated(res);
+            if (res.ok) onCreated(res, String(formData.get("categoryCode") ?? ""));
             else setError(res.error);
           })
         }

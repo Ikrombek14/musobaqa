@@ -39,10 +39,11 @@
   --danger-soft: #fdeff0;
 
   /* — Yo'nalish ranglari — */
-  --cat-r: #2f7df6; /* Robofutbol */
-  --cat-s: #e5484d; /* Sumo */
-  --cat-l: #1faa4b; /* Linefollower */
-  --cat-rr: #e8772e; /* Robrace */
+  --cat-f: #2f7df6;  /* Robofutbol */
+  --cat-s: #e5484d;  /* Arduino Robosumo */
+  --cat-ls: #8b5cf6; /* Lego Robosumo */
+  --cat-lf: #1faa4b; /* Linefollower */
+  --cat-rc: #e8772e; /* Roborace */
 
   --focus-ring: #2f7df6;
 
@@ -116,10 +117,11 @@
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
 
-  --color-cat-r: var(--cat-r);
+  --color-cat-f: var(--cat-f);
   --color-cat-s: var(--cat-s);
-  --color-cat-l: var(--cat-l);
-  --color-cat-rr: var(--cat-rr);
+  --color-cat-ls: var(--cat-ls);
+  --color-cat-lf: var(--cat-lf);
+  --color-cat-rc: var(--cat-rc);
 
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);

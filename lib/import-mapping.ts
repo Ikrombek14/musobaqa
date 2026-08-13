@@ -106,10 +106,11 @@ export function suggestMapping(headers: string[]): Mapping {
  * mumkin, shuning uchun qoida qatʼiy: qisqa taxallus — faqat aniq mos.
  */
 const CATEGORY_ALIASES: Record<CategoryCode, string[]> = {
-  R: ["robofutbol", "robo futbol", "futbol", "football", "soccer"],
-  S: ["sumo", "robosumo", "robo sumo"],
-  L: ["linefollower", "line follower", "chiziq", "line"],
-  RR: ["robrace", "rob race", "poyga", "race", "racing"],
+  F: ["robofutbol", "robo futbol", "futbol", "football", "soccer"],
+  S: ["arduino robosumo", "arduino sumo", "arduino", "robosumo", "sumo"],
+  LS: ["lego robosumo", "lego sumo", "lego"],
+  LF: ["linefollower", "line follower", "chiziq", "line"],
+  RC: ["roborace", "robrace", "rob race", "poyga", "race", "racing"],
 };
 
 /** Shu uzunlikdan qisqa taxallus faqat toʻliq mos kelganda hisoblanadi. */
