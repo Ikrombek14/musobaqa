@@ -79,6 +79,54 @@ async function loadOwnedMatch(tx: Tx, matchId: number, judge: { categoryCode: st
   return match;
 }
 
+/**
+ * Yakunlangan oʻyinni tahrirlash mumkinmi?
+ *
+ * Natija darhol saqlanadi va keyin tuzatiladi — lekin faqat oqim hali
+ * shu natijaga tayanmagan boʻlsa. Ikkita toʻsiq bor:
+ *
+ *  1. Keyingi bosqich oʻyini boshlangan — gʻolibni almashtirsak yarim
+ *     finalda oʻynab boʻlgan jamoa oʻrniga boshqasi tushib qolardi.
+ *  2. Guruh natijasi, lekin pleyoff allaqachon tuzilgan — jadval
+ *     oʻzgaradi, toʻr esa oʻzgarmaydi (`maybeCreatePlayoff` ikkinchi
+ *     marta ishlamaydi). Tuzilma jim ravishda notoʻgʻri boʻlib qolardi.
+ *
+ * Yangi natija (`status !== "done"`) uchun hech qanday tekshiruv yoʻq —
+ * odatiy yoʻl tez boʻlishi kerak.
+ */
+async function ensureEditable(
+  tx: Tx,
+  match: { id: number; status: string; stage: string; categoryCode: string; nextMatchId: number | null },
+): Promise<void> {
+  if (match.status !== "done") return;
+
+  if (match.nextMatchId) {
+    const [next] = await tx
+      .select({ status: schema.matches.status })
+      .from(schema.matches)
+      .where(eq(schema.matches.id, match.nextMatchId));
+    if (next && next.status !== "pending") {
+      throw new Error("Keyingi bosqich boshlangan — natijani oʻzgartirib boʻlmaydi");
+    }
+  }
+
+  if (match.stage === "group") {
+    const [playoff] = await tx
+      .select({ id: schema.matches.id })
+      .from(schema.matches)
+      .where(
+        and(
+          eq(schema.matches.categoryCode, match.categoryCode),
+          eq(schema.matches.stage, "playoff"),
+        ),
+      )
+      .limit(1);
+    if (playoff) {
+      throw new Error("Pleyoff tuzilgan — guruh natijasini tashkilotchi oʻzgartiradi");
+    }
+  }
+}
+
 /* ============================================================
    Robofutbol — hisob
    ============================================================ */
@@ -103,6 +151,8 @@ export async function saveFootballResult(
   try {
     await db.transaction(async (tx) => {
       const match = await loadOwnedMatch(tx, matchId, judge);
+      await ensureEditable(tx, match);
+
       const winnerId =
         scoreA > scoreB ? match.teamAId : scoreB > scoreA ? match.teamBId : null;
 
@@ -228,6 +278,78 @@ export async function saveSumoRound(
   }
 }
 
+/**
+ * Oxirgi raundni olib tashlash — sumo natijasini tuzatish yoʻli.
+ *
+ * Butun uchrashuvni bekor qilish oʻrniga bitta raund qaytariladi:
+ * hakam 2-raundda xato tugmani bosgan boʻlsa, 1-raund saqlanib qoladi.
+ * Uchrashuv yakunlangan boʻlsa gʻolib keyingi bosqichdan ham olinadi.
+ */
+export async function undoSumoRound(
+  rawMatchId: unknown,
+): Promise<ActionResult<{ winsA: number; winsB: number; rounds: SumoRounds["rounds"] }>> {
+  const judge = await requireJudge().catch(() => null);
+  if (!judge) return { ok: false, error: "Qayta kiring" };
+
+  const matchId = toId(rawMatchId);
+  if (matchId === null) return { ok: false, error: "Oʻyin topilmadi" };
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const match = await loadOwnedMatch(tx, matchId, judge);
+      await ensureEditable(tx, match);
+
+      const current = (match.roundsJson as SumoRounds | null) ?? { rounds: [] };
+      if (current.rounds.length === 0) throw new Error("Bekor qiladigan raund yoʻq");
+
+      const rounds = current.rounds.slice(0, -1);
+      const winsA = rounds.filter((r) => r.winner === "a").length;
+      const winsB = rounds.filter((r) => r.winner === "b").length;
+
+      await tx
+        .update(schema.matches)
+        .set({
+          roundsJson: { rounds },
+          scoreA: winsA,
+          scoreB: winsB,
+          status: rounds.length > 0 ? "live" : "pending",
+          winnerId: null,
+          finishedAt: null,
+          judgeId: judge.id,
+        })
+        .where(eq(schema.matches.id, matchId));
+
+      // Uchrashuv yakunlangan boʻlsa gʻolib keyingi oʻyinga koʻchgan edi
+      if (match.status === "done") await advanceWinner(tx, matchId, null);
+
+      await tx.insert(schema.auditLog).values({
+        actor: judge.name,
+        action: "match.sumo_undo",
+        entity: "match",
+        entityId: String(matchId),
+        before: current,
+        after: { rounds },
+      });
+
+      await emit(tx, match.categoryCode, "match.updated", {
+        matchId,
+        scoreA: winsA,
+        scoreB: winsB,
+        winnerId: null,
+        status: rounds.length > 0 ? "live" : "pending",
+        rounds,
+      });
+
+      return { winsA, winsB, rounds };
+    });
+
+    revalidateJudgeViews(judge.categoryCode);
+    return { ok: true, data: outcome };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
 /* ============================================================
    Robrace — bitta raund, ixtiyoriy vaqt
    ============================================================ */
@@ -256,6 +378,8 @@ export async function saveRaceResult(
   try {
     await db.transaction(async (tx) => {
       const match = await loadOwnedMatch(tx, matchId, judge);
+      await ensureEditable(tx, match);
+
       const winnerId = side === "a" ? match.teamAId : match.teamBId;
 
       await tx
@@ -397,71 +521,8 @@ export async function saveRun(
 }
 
 /* ============================================================
-   Bekor qilish — 10 soniya ichida xato bosilganini qaytarish
+   Urinishni oʻchirish
    ============================================================ */
-
-export async function revertMatch(rawMatchId: unknown): Promise<ActionResult> {
-  const judge = await requireJudge().catch(() => null);
-  if (!judge) return { ok: false, error: "Qayta kiring" };
-
-  const matchId = toId(rawMatchId);
-  if (matchId === null) return { ok: false, error: "Oʻyin topilmadi" };
-
-  try {
-    await db.transaction(async (tx) => {
-      const match = await loadOwnedMatch(tx, matchId, judge);
-
-      // Keyingi bosqich boshlangan bo'lsa qaytarib bo'lmaydi
-      if (match.nextMatchId) {
-        const [next] = await tx
-          .select({ status: schema.matches.status })
-          .from(schema.matches)
-          .where(eq(schema.matches.id, match.nextMatchId));
-        if (next && next.status !== "pending") {
-          throw new Error("Keyingi bosqich boshlangan — bekor qilib boʻlmaydi");
-        }
-        // G'olibni keyingi o'yindan olib tashlaymiz
-        await tx
-          .update(schema.matches)
-          .set(match.nextSlot === "a" ? { teamAId: null } : { teamBId: null })
-          .where(eq(schema.matches.id, match.nextMatchId));
-      }
-
-      await tx
-        .update(schema.matches)
-        .set({
-          scoreA: 0,
-          scoreB: 0,
-          winnerId: null,
-          roundsJson: null,
-          status: "pending",
-          finishedAt: null,
-        })
-        .where(eq(schema.matches.id, matchId));
-
-      await tx.insert(schema.auditLog).values({
-        actor: judge.name,
-        action: "match.revert",
-        entity: "match",
-        entityId: String(matchId),
-        before: { scoreA: match.scoreA, scoreB: match.scoreB, winnerId: match.winnerId },
-      });
-
-      await emit(tx, match.categoryCode, "match.reverted", {
-        matchId,
-        scoreA: 0,
-        scoreB: 0,
-        winnerId: null,
-        status: "pending",
-      });
-    });
-
-    revalidateJudgeViews(judge.categoryCode);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-}
 
 export async function revertRun(
   rawTeamId: unknown,

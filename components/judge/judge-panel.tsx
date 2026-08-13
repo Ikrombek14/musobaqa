@@ -2,23 +2,33 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Flag, Minus, Plus, RotateCcw, Play, Square, Trophy } from "lucide-react";
+import {
+  Check,
+  Flag,
+  Minus,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Play,
+  Square,
+  Trash2,
+  Trophy,
+} from "lucide-react";
 import { useLive } from "@/lib/realtime/use-live";
 import { CATEGORIES, PENALTY_MS, type CategoryCode } from "@/lib/categories";
 import { formatMs } from "@/lib/format";
 import { roundName } from "@/lib/draw/engine";
 import {
-  revertMatch,
   revertRun,
   saveFootballResult,
   saveRaceResult,
   saveRun,
   saveSumoRound,
+  undoSumoRound,
 } from "@/server/actions/judge";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, EmptyState, LiveDot, TeamNumber } from "@/components/ui/primitives";
 import { TimerDisplay, useTimer } from "./timer";
-import { UndoBar } from "./undo-bar";
 import type { JudgeMatch, JudgeTeamRun, JudgeWork } from "@/server/queries/judge";
 
 type Props = {
@@ -33,28 +43,28 @@ export function JudgePanel(props: Props) {
   const router = useRouter();
 
   /**
-   * Tuzilma oʻzgarganda ekranni yangilaymiz.
+   * Yoʻnalishda nimadir oʻzgarsa ekranni yangilaymiz.
    *
-   * Bu «keyingi tur avtomatik boshlanadi» talabining hakam tomonidagi
-   * yarmi: boshqa maydonda oxirgi natija yozilib yarim final ochilsa,
-   * shu hakamning roʻyxatida u sahifani qayta yuklamasdan paydo boʻladi.
+   * Ikki holat uchun kerak:
+   *  • keyingi tur ochilishi — boshqa maydonda oxirgi natija yozilib
+   *    yarim final tuzilsa, u shu hakamda sahifa yuklanmasdan chiqadi;
+   *  • bitta maydonda ikki hakam (yoki bosh hakam) ishlayotgan boʻlsa —
+   *    biri yozgan natijani ikkinchisi darhol koʻradi va ikki marta
+   *    yozib qoʻymaydi.
    *
-   * Faqat TUZILMA oʻzgarishida yangilaymiz — har golda refresh qilsak
-   * hakamning oʻz ekrani bejiz sakrab turadi.
+   * 800 ms oynada toʻplanadi: ketma-ket kelgan hodisalar bitta
+   * yangilanishga aylanadi. Lokal holat (hisob hisoblagichi, taymer)
+   * `router.refresh()` da yoʻqolmaydi — u faqat server maʼlumotini
+   * almashtiradi.
    */
   const refreshing = useRef(false);
-  const status = useLive(props.categoryCode, props.work.sinceId, (event) => {
-    const structural =
-      event.structure === true ||
-      event.type === "draw.completed" ||
-      event.type === "draw.cancelled";
-    if (!structural || refreshing.current) return;
+  const status = useLive(props.categoryCode, props.work.sinceId, () => {
+    if (refreshing.current) return;
 
     refreshing.current = true;
-    router.refresh();
-    // Ketma-ket kelgan hodisalar bir nechta refresh chaqirmasin
     setTimeout(() => {
       refreshing.current = false;
+      router.refresh();
     }, 800);
   });
 
@@ -105,37 +115,26 @@ function MatchPanel({ work, categoryCode, fieldNo }: Props) {
   }, []);
 
   /**
-   * «Bekor qilish» oynasi MatchPanel darajasida saqlanadi.
+   * «Saqlandi» belgisi MatchPanel darajasida turadi.
    *
-   * Ilgari bu holat MatchCard ichida edi va ishlamasdi: natija
-   * saqlangach kartochka «Navbatdagi» boʻlimidan «Yakunlangan» ga
-   * koʻchardi, React uni boshqa joyda qaytadan yaratardi va lokal
-   * holat yoʻqolardi — hakam bekor qilish tugmasini umuman koʻrmasdi.
-   *
-   * Shu sababdan yakunlangan oʻyin bekor qilish oynasi tugaguncha
-   * oʻz joyida ham qoldiriladi: hakam qayerga qaragan boʻlsa oʻsha
-   * yerda tugmani koʻradi.
+   * Natija saqlangach kartochka «Navbatdagi» boʻlimidan «Yakunlangan» ga
+   * koʻchadi va React uni boshqa joyda qaytadan yaratadi — lokal holat
+   * yoʻqolardi. Shuning uchun belgi shu yerda, oʻyin id'si boʻyicha.
    */
-  const [undoLabels, setUndoLabels] = useState<Record<number, string>>({});
+  const [savedIds, setSavedIds] = useState<Record<number, number>>({});
 
-  const markSaved = useCallback((id: number, label: string) => {
-    setUndoLabels((current) => ({ ...current, [id]: label }));
+  const matchesRef = useRef(matches);
+  matchesRef.current = matches;
+
+  const markSaved = useCallback((id: number) => {
+    setSavedIds((current) => ({ ...current, [id]: Date.now() }));
+    // Keyingi oʻyin oʻzi ochiladi — hakam qoʻshimcha bosishsiz davom etadi
+    const next = matchesRef.current.find((m) => m.id !== id && m.status !== "done");
+    setOpenId(next?.id ?? null);
   }, []);
 
-  const clearSaved = useCallback((id: number) => {
-    setUndoLabels((current) => {
-      if (!(id in current)) return current;
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
-  }, []);
-
-  // Yakunlangani bekor qilish oynasi tugaguncha oʻz joyida turadi,
-  // lekin sanoqqa kirmaydi — «Navbatdagi · 5» har doim rost boʻlsin.
-  const pending = matches.filter((m) => m.status !== "done" || undoLabels[m.id]);
-  const done = matches.filter((m) => m.status === "done" && !undoLabels[m.id]);
-  const pendingCount = matches.filter((m) => m.status !== "done").length;
+  const pending = matches.filter((m) => m.status !== "done");
+  const done = matches.filter((m) => m.status === "done");
 
   if (matches.length === 0) {
     return (
@@ -157,7 +156,7 @@ function MatchPanel({ work, categoryCode, fieldNo }: Props) {
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-          Navbatdagi oʻyinlar · {pendingCount}
+          Navbatdagi oʻyinlar · {pending.length}
         </h2>
         {pending.length === 0 ? (
           <Card>
@@ -176,9 +175,8 @@ function MatchPanel({ work, categoryCode, fieldNo }: Props) {
               open={openId === match.id}
               onOpen={() => setOpenId(openId === match.id ? null : match.id)}
               onPatch={patch}
-              undoLabel={undoLabels[match.id] ?? null}
+              justSaved={savedIds[match.id] ?? null}
               onSaved={markSaved}
-              onUndoDone={clearSaved}
             />
           ))
         )}
@@ -198,9 +196,8 @@ function MatchPanel({ work, categoryCode, fieldNo }: Props) {
               open={openId === match.id}
               onOpen={() => setOpenId(openId === match.id ? null : match.id)}
               onPatch={patch}
-              undoLabel={undoLabels[match.id] ?? null}
+              justSaved={savedIds[match.id] ?? null}
               onSaved={markSaved}
-              onUndoDone={clearSaved}
             />
           ))}
         </section>
@@ -216,9 +213,8 @@ function MatchCard({
   open,
   onOpen,
   onPatch,
-  undoLabel,
+  justSaved,
   onSaved,
-  onUndoDone,
 }: {
   match: JudgeMatch;
   categoryCode: CategoryCode;
@@ -226,14 +222,30 @@ function MatchCard({
   open: boolean;
   onOpen: () => void;
   onPatch: (id: number, changes: Partial<JudgeMatch>) => void;
-  undoLabel: string | null;
-  onSaved: (id: number, label: string) => void;
-  onUndoDone: (id: number) => void;
+  justSaved: number | null;
+  onSaved: (id: number) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const category = CATEGORIES[categoryCode];
-  const setUndoLabel = (label: string) => onSaved(match.id, label);
+
+  /**
+   * Natija darhol bazaga yoziladi, keyin tahrirlanadi.
+   *
+   * Ilgari saqlangandan keyin 10 soniyalik «bekor qilish» oynasi chiqardi:
+   * shu vaqt oʻtib ketsa xatoni tuzatishning yoʻli qolmasdi va hakam
+   * tashkilotchini chaqirardi. Endi cheklov yoʻq — yakunlangan oʻyinni
+   * istalgan vaqtda ochib tuzatish mumkin, faqat keyingi bosqich
+   * boshlangan boʻlsa server ruxsat bermaydi.
+   */
+  const [editing, setEditing] = useState(false);
+  const isDone = match.status === "done";
+  const showControls = !isDone || editing;
+
+  const finish = () => {
+    setEditing(false);
+    onSaved(match.id);
+  };
 
   const ready = match.teamA !== null && match.teamB !== null;
   const label =
@@ -241,21 +253,21 @@ function MatchCard({
       ? `${match.groupName ?? "?"} guruh`
       : roundName(match.round, totalRounds);
 
-  const handleUndo = () => {
+  const handleSumoUndo = () => {
     startTransition(async () => {
-      const result = await revertMatch(match.id);
+      setError(null);
+      const result = await undoSumoRound(match.id);
       if (result.ok) {
+        const { winsA, winsB, rounds } = result.data;
         onPatch(match.id, {
-          status: "pending",
-          scoreA: 0,
-          scoreB: 0,
+          scoreA: winsA,
+          scoreB: winsB,
+          status: rounds.length > 0 ? "live" : "pending",
           winnerId: null,
-          roundsJson: null,
+          roundsJson: rounds.length > 0 ? { rounds } : null,
         });
-      } else {
-        setError(result.error);
-      }
-      onUndoDone(match.id);
+        setEditing(false);
+      } else setError(result.error);
     });
   };
 
@@ -293,23 +305,10 @@ function MatchCard({
         <TeamSide team={match.teamB} categoryCode={categoryCode} align="left" winner={match.winnerId === match.teamB?.id} />
       </div>
 
-      {/*
-        «Bekor qilish» kartochka yopiq boʻlsa ham koʻrinadi.
-        Ilgari u faqat ochiq kartochka ichida edi: hakam boshqa oʻyinni
-        ochishi bilan yangi yozgan natijasini qaytarish imkoniyatini
-        yoʻqotardi — bu 10 soniyalik kafolatni buzardi.
-      */}
-      {undoLabel && (
-        <div className="border-t border-[var(--border)] bg-[var(--bg-subtle)] p-4">
-          <UndoBar
-            label={undoLabel}
-            onUndo={handleUndo}
-            onExpire={() => onUndoDone(match.id)}
-          />
-        </div>
-      )}
+      {/* Saqlanganini tasdiqlash — kartochka yopiq boʻlsa ham koʻrinadi */}
+      {justSaved !== null && isDone && !editing && <SavedFlash at={justSaved} />}
 
-      {open && !undoLabel && (
+      {open && (
         <div className="border-t border-[var(--border)] bg-[var(--bg-subtle)] p-4">
           {!ready ? (
             <p className="text-center text-sm text-[var(--text-muted)]">
@@ -317,10 +316,23 @@ function MatchCard({
             </p>
           ) : (
             <>
-              {category.format === "group_playoff" && (
+              {isDone && !editing && (
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-sm text-[var(--text-muted)]">
+                    Natija saqlangan. Xato boʻlsa oʻzgartirishingiz mumkin.
+                  </p>
+                  <Button variant="secondary" size="lg" onClick={() => setEditing(true)}>
+                    <Pencil className="size-4" aria-hidden="true" />
+                    Natijani oʻzgartirish
+                  </Button>
+                </div>
+              )}
+
+              {showControls && category.format === "group_playoff" && (
                 <FootballControls
                   match={match}
                   pending={pending}
+                  editing={editing}
                   onSave={(scoreA, scoreB) =>
                     startTransition(async () => {
                       setError(null);
@@ -337,17 +349,18 @@ function MatchCard({
                                 ? match.teamB!.id
                                 : null,
                         });
-                        setUndoLabel(`Natija saqlandi: ${scoreA}:${scoreB}`);
+                        finish();
                       } else setError(result.error);
                     })
                   }
                 />
               )}
 
-              {(categoryCode === "S" || categoryCode === "LS") && (
+              {showControls && (categoryCode === "S" || categoryCode === "LS") && (
                 <SumoControls
                   match={match}
                   pending={pending}
+                  onUndoRound={handleSumoUndo}
                   onRound={(side) =>
                     startTransition(async () => {
                       setError(null);
@@ -364,17 +377,18 @@ function MatchCard({
                               : match.teamB!.id
                             : null,
                         });
-                        if (finished) setUndoLabel(`Uchrashuv yakunlandi: ${winsA}:${winsB}`);
+                        if (finished) finish();
                       } else setError(result.error);
                     })
                   }
                 />
               )}
 
-              {categoryCode === "RC" && (
+              {showControls && categoryCode === "RC" && (
                 <RaceControls
                   match={match}
                   pending={pending}
+                  editing={editing}
                   onSave={(side, timeA, timeB) =>
                     startTransition(async () => {
                       setError(null);
@@ -386,11 +400,25 @@ function MatchCard({
                           scoreB: side === "b" ? 1 : 0,
                           winnerId: side === "a" ? match.teamA!.id : match.teamB!.id,
                         });
-                        setUndoLabel("Gʻolib saqlandi");
+                        finish();
                       } else setError(result.error);
                     })
                   }
                 />
+              )}
+
+              {editing && (
+                <Button
+                  variant="ghost"
+                  block
+                  className="mt-3"
+                  onClick={() => {
+                    setEditing(false);
+                    setError(null);
+                  }}
+                >
+                  Tahrirdan chiqish
+                </Button>
               )}
 
               {error && (
@@ -406,6 +434,35 @@ function MatchCard({
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * «Saqlandi» chizigʻi — 6 soniya turadi.
+ *
+ * Bu shunchaki tasdiq: natija allaqachon bazada va tabloda. Hech qanday
+ * tugma yoʻq, chunki tuzatish yoʻli — kartochkani ochib «oʻzgartirish».
+ */
+function SavedFlash({ at }: { at: number }) {
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    setVisible(true);
+    const id = setTimeout(() => setVisible(false), 6000);
+    return () => clearTimeout(id);
+  }, [at]);
+
+  if (!visible) return null;
+
+  return (
+    <p
+      role="status"
+      aria-live="polite"
+      className="flex items-center gap-2 border-t border-[var(--border)] bg-[var(--success-soft)] px-4 py-2.5 text-sm font-semibold text-[var(--success)]"
+    >
+      <Check className="size-4" aria-hidden="true" />
+      Saqlandi — tabloda koʻrindi
+    </p>
   );
 }
 
@@ -443,10 +500,12 @@ function TeamSide({
 function FootballControls({
   match,
   pending,
+  editing,
   onSave,
 }: {
   match: JudgeMatch;
   pending: boolean;
+  editing: boolean;
   onSave: (scoreA: number, scoreB: number) => void;
 }) {
   const [a, setA] = useState(match.scoreA);
@@ -455,24 +514,29 @@ function FootballControls({
 
   return (
     <div className="flex flex-col gap-4">
-      <TimerDisplay ms={timer.elapsed} running={timer.running} />
-      <div className="flex justify-center gap-2">
-        {timer.running ? (
-          <Button variant="secondary" onClick={timer.stop}>
-            <Square className="size-4" aria-hidden="true" />
-            Toʻxtatish
-          </Button>
-        ) : (
-          <Button variant="secondary" onClick={timer.start}>
-            <Play className="size-4" aria-hidden="true" />
-            {timer.elapsed > 0 ? "Davom" : "Boshlash"}
-          </Button>
-        )}
-        <Button variant="ghost" onClick={timer.reset} disabled={timer.elapsed === 0}>
-          <RotateCcw className="size-4" aria-hidden="true" />
-          Nol
-        </Button>
-      </div>
+      {/* Tahrirda taymer keraksiz — oʻyin allaqachon oʻynalgan */}
+      {!editing && (
+        <>
+          <TimerDisplay ms={timer.elapsed} running={timer.running} />
+          <div className="flex justify-center gap-2">
+            {timer.running ? (
+              <Button variant="secondary" onClick={timer.stop}>
+                <Square className="size-4" aria-hidden="true" />
+                Toʻxtatish
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={timer.start}>
+                <Play className="size-4" aria-hidden="true" />
+                {timer.elapsed > 0 ? "Davom" : "Boshlash"}
+              </Button>
+            )}
+            <Button variant="ghost" onClick={timer.reset} disabled={timer.elapsed === 0}>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Nol
+            </Button>
+          </div>
+        </>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <Counter label={match.teamA?.number ?? "A"} value={a} onChange={setA} />
@@ -481,7 +545,7 @@ function FootballControls({
 
       <Button variant="primary" size="xl" block loading={pending} onClick={() => onSave(a, b)}>
         <Flag className="size-5" aria-hidden="true" />
-        Yakunlash · {a}:{b}
+        {editing ? "Yangi hisobni saqlash" : "Yakunlash"} · {a}:{b}
       </Button>
     </div>
   );
@@ -530,15 +594,18 @@ function SumoControls({
   match,
   pending,
   onRound,
+  onUndoRound,
 }: {
   match: JudgeMatch;
   pending: boolean;
   onRound: (side: "a" | "b") => void;
+  onUndoRound: () => void;
 }) {
   const rounds =
     ((match.roundsJson as { rounds?: { n: number; winner: "a" | "b" }[] } | null)?.rounds) ?? [];
   const winsA = match.scoreA;
   const winsB = match.scoreB;
+  const finished = match.status === "done";
 
   return (
     <div className="flex flex-col gap-4">
@@ -567,32 +634,55 @@ function SumoControls({
       </div>
 
       <p className="text-center text-sm text-[var(--text-muted)]">
-        Raundni kim yutdi? <span className="tnum font-semibold">{winsA}:{winsB}</span> ·
-        2-gʻalabada avtomatik yopiladi
+        {finished ? (
+          <>
+            Uchrashuv yakunlandi{" "}
+            <span className="tnum font-semibold">{winsA}:{winsB}</span>
+          </>
+        ) : (
+          <>
+            Raundni kim yutdi? <span className="tnum font-semibold">{winsA}:{winsB}</span> ·
+            2-gʻalabada avtomatik yopiladi
+          </>
+        )}
       </p>
 
       {/* aria-label: tugmada faqat raqam turadi, skrinrider «S03» dan
           nima boʻlishini bilmaydi */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          variant="secondary"
-          size="xl"
-          loading={pending}
-          onClick={() => onRound("a")}
-          aria-label={`${match.teamA?.number ?? "A"} raundni yutdi`}
-        >
-          {match.teamA?.number ?? "A"}
+      {!finished && (
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            variant="secondary"
+            size="xl"
+            loading={pending}
+            onClick={() => onRound("a")}
+            aria-label={`${match.teamA?.number ?? "A"} raundni yutdi`}
+          >
+            {match.teamA?.number ?? "A"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="xl"
+            loading={pending}
+            onClick={() => onRound("b")}
+            aria-label={`${match.teamB?.number ?? "B"} raundni yutdi`}
+          >
+            {match.teamB?.number ?? "B"}
+          </Button>
+        </div>
+      )}
+
+      {/*
+        Sumoda tuzatish = oxirgi raundni qaytarish.
+        Butun uchrashuvni tozalash oʻrniga bitta qadam orqaga: 3-raundda
+        xato bosilgan boʻlsa 1- va 2-raund saqlanib qoladi.
+      */}
+      {rounds.length > 0 && (
+        <Button variant="ghost" block loading={pending} onClick={onUndoRound}>
+          <RotateCcw className="size-4" aria-hidden="true" />
+          {rounds.length}-raundni bekor qilish
         </Button>
-        <Button
-          variant="secondary"
-          size="xl"
-          loading={pending}
-          onClick={() => onRound("b")}
-          aria-label={`${match.teamB?.number ?? "B"} raundni yutdi`}
-        >
-          {match.teamB?.number ?? "B"}
-        </Button>
-      </div>
+      )}
     </div>
   );
 }
@@ -601,14 +691,20 @@ function SumoControls({
 function RaceControls({
   match,
   pending,
+  editing,
   onSave,
 }: {
   match: JudgeMatch;
   pending: boolean;
+  editing: boolean;
   onSave: (side: "a" | "b", timeA: number | null, timeB: number | null) => void;
 }) {
-  const [timeA, setTimeA] = useState("");
-  const [timeB, setTimeB] = useState("");
+  const saved = (match.roundsJson as { timeAMs?: number | null; timeBMs?: number | null } | null) ?? null;
+  const asSeconds = (ms: number | null | undefined) =>
+    typeof ms === "number" && ms > 0 ? String(ms / 1000) : "";
+
+  const [timeA, setTimeA] = useState(() => asSeconds(saved?.timeAMs));
+  const [timeB, setTimeB] = useState(() => asSeconds(saved?.timeBMs));
 
   const parse = (value: string) => {
     const n = Number(value.replace(",", "."));
@@ -618,7 +714,7 @@ function RaceControls({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-center text-sm text-[var(--text-muted)]">
-        Kim birinchi keldi?
+        {editing ? "Gʻolibni qaytadan belgilang" : "Kim birinchi keldi?"}
       </p>
 
       <div className="grid grid-cols-2 gap-3">
@@ -749,10 +845,21 @@ function RunCard({
   const timer = useTimer();
   const [penalties, setPenalties] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [undoInfo, setUndoInfo] = useState<{ label: string; attemptNo: number } | null>(null);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const nextAttempt = team.attempts.length < 1 ? 1 : team.attempts.length < 2 ? 2 : null;
+  /**
+   * Qaysi urinish yozilyapti.
+   *
+   * `null` — navbatdagisi (1 yoki 2). Raqam — hakam yozilgan urinishni
+   * tahrirlash uchun tanlagan. Natija darhol saqlanadi, keyin shu yerdan
+   * tuzatiladi: bazada `runs` jadvali (team_id, attempt_no) boʻyicha
+   * upsert qiladi, ya'ni qayta yozish tabiiy holat.
+   */
+  const [editAttempt, setEditAttempt] = useState<number | null>(null);
+
+  const autoAttempt = team.attempts.length < 1 ? 1 : team.attempts.length < 2 ? 2 : null;
+  const nextAttempt = editAttempt ?? autoAttempt;
   const finalMs = timer.elapsed + penalties * PENALTY_MS;
   const best = team.attempts
     .filter((a) => a.status === "ok")
@@ -760,38 +867,44 @@ function RunCard({
 
   const save = (status: "ok" | "dnf") => {
     if (nextAttempt === null) return;
+    const attemptNo = nextAttempt;
     startTransition(async () => {
       setError(null);
       const result = await saveRun(
         team.teamId,
-        nextAttempt,
+        attemptNo,
         status === "dnf" ? 0 : timer.elapsed,
         status === "dnf" ? 0 : penalties,
         status,
       );
       if (result.ok) {
-        onPatch([
-          ...team.attempts,
-          {
-            attemptNo: nextAttempt,
-            rawMs: status === "dnf" ? 0 : timer.elapsed,
-            penalties: status === "dnf" ? 0 : penalties,
-            finalMs: result.data.finalMs,
-            status,
-          },
-        ]);
-        setUndoInfo({
-          label:
-            status === "dnf"
-              ? `${nextAttempt}-urinish: DNF`
-              : `${nextAttempt}-urinish: ${formatMs(result.data.finalMs)}`,
-          attemptNo: nextAttempt,
-        });
+        const row = {
+          attemptNo,
+          rawMs: status === "dnf" ? 0 : timer.elapsed,
+          penalties: status === "dnf" ? 0 : penalties,
+          finalMs: result.data.finalMs,
+          status,
+        };
+        const rest = team.attempts.filter((a) => a.attemptNo !== attemptNo);
+        onPatch([...rest, row].sort((x, y) => x.attemptNo - y.attemptNo));
+        setSavedAt(Date.now());
+        setEditAttempt(null);
         timer.reset();
         setPenalties(0);
       } else {
         setError(result.error);
       }
+    });
+  };
+
+  const remove = (attemptNo: number) => {
+    startTransition(async () => {
+      setError(null);
+      const result = await revertRun(team.teamId, attemptNo);
+      if (result.ok) {
+        onPatch(team.attempts.filter((a) => a.attemptNo !== attemptNo));
+        if (editAttempt === attemptNo) setEditAttempt(null);
+      } else setError(result.error);
     });
   };
 
@@ -813,36 +926,21 @@ function RunCard({
         </Badge>
       </button>
 
-      {/* Bekor qilish kartochka yopiq boʻlsa ham koʻrinadi — qarang:
-          MatchCard dagi izoh */}
-      {undoInfo && (
-        <div className="border-t border-[var(--border)] bg-[var(--bg-subtle)] p-4">
-          <UndoBar
-            label={undoInfo.label}
-            onUndo={() =>
-              startTransition(async () => {
-                const result = await revertRun(team.teamId, undoInfo.attemptNo);
-                if (result.ok) {
-                  onPatch(team.attempts.filter((a) => a.attemptNo !== undoInfo.attemptNo));
-                } else setError(result.error);
-                setUndoInfo(null);
-              })
-            }
-            onExpire={() => setUndoInfo(null)}
-          />
-        </div>
-      )}
+      {/* Saqlanganini tasdiqlash — kartochka yopiq boʻlsa ham koʻrinadi */}
+      {savedAt !== null && <SavedFlash at={savedAt} />}
 
-      {open && !undoInfo && (
+      {open && (
         <div className="border-t border-[var(--border)] bg-[var(--bg-subtle)] p-4">
           {nextAttempt === null ? (
             <p className="text-center text-sm text-[var(--text-muted)]">
-              Ikkala urinish ham yozilgan.
+              Ikkala urinish ham yozilgan. Tuzatish kerak boʻlsa quyidagi
+              roʻyxatdan urinishni tanlang.
             </p>
           ) : (
             <div className="flex flex-col gap-4">
               <p className="text-center text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 {nextAttempt}-urinish
+                {editAttempt !== null && " · qayta yozilmoqda"}
               </p>
 
               <TimerDisplay ms={finalMs} running={timer.running} />
@@ -906,6 +1004,12 @@ function RunCard({
                 </p>
               )}
 
+              {editAttempt !== null && (
+                <Button variant="ghost" block onClick={() => setEditAttempt(null)}>
+                  Tahrirdan chiqish
+                </Button>
+              )}
+
               {error && (
                 <p
                   role="alert"
@@ -920,14 +1024,36 @@ function RunCard({
           {team.attempts.length > 0 && (
             <ul className="mt-4 flex flex-col gap-1 border-t border-[var(--border)] pt-3 text-sm">
               {team.attempts.map((attempt) => (
-                <li key={attempt.attemptNo} className="flex justify-between">
+                <li key={attempt.attemptNo} className="flex items-center gap-2">
                   <span className="text-[var(--text-muted)]">
                     {attempt.attemptNo}-urinish
                     {attempt.penalties > 0 && ` · ${attempt.penalties} jarima`}
                   </span>
-                  <span className="tnum font-semibold">
+                  <span className="tnum ml-auto font-semibold">
                     {attempt.status === "dnf" ? "DNF" : formatMs(attempt.finalMs)}
                   </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => {
+                      setEditAttempt(attempt.attemptNo);
+                      timer.reset();
+                      setPenalties(0);
+                    }}
+                    aria-label={`${attempt.attemptNo}-urinishni qayta yozish`}
+                  >
+                    <Pencil className="size-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    loading={pending}
+                    onClick={() => remove(attempt.attemptNo)}
+                    aria-label={`${attempt.attemptNo}-urinishni oʻchirish`}
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  </Button>
                 </li>
               ))}
             </ul>

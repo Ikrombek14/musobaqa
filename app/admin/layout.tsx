@@ -46,48 +46,55 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
 
   return (
     <div className="flex min-h-screen flex-col">
+      {/*
+        Sarlavha ikki qator: yuqorida brend va hisob, pastida boʻlimlar.
+        Ilgari hammasi bitta qatorda edi va 10 ta boʻlim sigʻmay
+        gorizontal skrollbar chiqarardi — sichqonchasiz kompyuterda
+        oxirgi boʻlimlarga yetib boʻlmasdi. Endi boʻlimlar qatori
+        oʻraladi (`flex-wrap`), skroll umuman yoʻq.
+      */}
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6">
-          <Link
-            href="/admin"
-            className="flex items-center gap-2 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
-            aria-label="Musobaqa admin — boshqaruv"
-          >
-            <Logo />
-            <span className="hidden text-sm font-medium text-[var(--text-muted)] sm:inline">
-              Admin
-            </span>
-          </Link>
+        <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6">
+          <div className="flex h-14 items-center gap-4">
+            <Link
+              href="/admin"
+              className="flex items-center gap-2 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+              aria-label="Musobaqa admin — boshqaruv"
+            >
+              <Logo />
+              <span className="hidden text-sm font-medium text-[var(--text-muted)] sm:inline">
+                Admin
+              </span>
+            </Link>
 
-          {/* Boʻlimlar koʻp — kichik ekranda gorizontal siljiydi,
-              sahifa oʻzi esa hech qachon yon tomonga surilmaydi */}
+            <div className="ml-auto flex items-center gap-3">
+              <span className="hidden text-sm text-[var(--text-muted)] sm:inline">
+                {session.admin.name}
+              </span>
+              <form action={adminLogout}>
+                <Button type="submit" variant="ghost" size="sm">
+                  <LogOut className="size-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">Chiqish</span>
+                </Button>
+              </form>
+            </div>
+          </div>
+
           <nav
             aria-label="Admin boʻlimlari"
-            className="-mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1"
+            className="-mx-1 flex flex-wrap items-center gap-0.5 pb-2"
           >
             {NAV.map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
-                className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--text)]"
+                className="inline-flex items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-subtle)] hover:text-[var(--text)]"
               >
-                <Icon className="size-4" aria-hidden="true" />
+                <Icon className="size-4 shrink-0" aria-hidden="true" />
                 <span className="hidden sm:inline">{label}</span>
               </Link>
             ))}
           </nav>
-
-          <div className="ml-auto flex items-center gap-3">
-            <span className="hidden text-sm text-[var(--text-muted)] sm:inline">
-              {session.admin.name}
-            </span>
-            <form action={adminLogout}>
-              <Button type="submit" variant="ghost" size="sm">
-                <LogOut className="size-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Chiqish</span>
-              </Button>
-            </form>
-          </div>
         </div>
       </header>
 

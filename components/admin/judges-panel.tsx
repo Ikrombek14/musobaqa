@@ -2,7 +2,12 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { KeyRound, Pencil, Plus, Power, Trash2, X } from "lucide-react";
-import { CATEGORIES, CATEGORY_LIST, type CategoryCode } from "@/lib/categories";
+import {
+  CATEGORIES,
+  CATEGORY_LIST,
+  isCategoryCode,
+  type CategoryCode,
+} from "@/lib/categories";
 import {
   createJudge,
   deleteJudge,
@@ -261,9 +266,17 @@ function JudgeForm({
     null,
   );
 
-  const [categoryCode, setCategoryCode] = useState<CategoryCode>(
-    (judge?.categoryCode as CategoryCode) ?? "R",
-  );
+  /**
+   * Boshlangʻich yoʻnalish roʻyxatning oʻzidan olinadi.
+   *
+   * Ilgari bu yerda qattiq yozilgan `"R"` turardi. Yoʻnalish kodlari
+   * F/S/LS/LF/RC ga oʻzgargach `CATEGORIES["R"]` `undefined` qaytardi va
+   * forma ochilishi bilan butun sahifa qulardi.
+   */
+  const [categoryCode, setCategoryCode] = useState<CategoryCode>(() => {
+    const code = judge?.categoryCode ?? "";
+    return isCategoryCode(code) ? code : CATEGORY_LIST[0].code;
+  });
   const [pin, setPin] = useState("");
   const [suggesting, startSuggest] = useTransition();
 
