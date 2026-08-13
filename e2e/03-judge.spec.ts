@@ -115,7 +115,7 @@ test.describe("Hakam — sumo (best of 3)", () => {
     expect(errors, errors.join("\n")).toHaveLength(0);
   });
 
-  test("butun toʻr oxirigacha: har tur OʻZI ochiladi", async ({ page }) => {
+  test("butun toʻr oxirigacha: har tur OʻZI ochiladi @slow", async ({ page }) => {
     test.setTimeout(180_000);
     const { errors } = watchForErrors(page);
     await loginJudge(page, PINS.S1);
@@ -161,7 +161,7 @@ test.describe("Hakam — sumo (best of 3)", () => {
 });
 
 test.describe("Hakam — robofutbol: guruh tugadi → pleyoff OʻZI tuziladi", () => {
-  test("hamma guruh oʻyini oʻynalgach pleyoff paydo boʻladi", async ({ page }) => {
+  test("hamma guruh oʻyini oʻynalgach pleyoff paydo boʻladi @slow", async ({ page }) => {
     test.setTimeout(240_000);
     const { errors } = watchForErrors(page);
 
