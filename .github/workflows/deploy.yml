@@ -134,8 +134,11 @@ jobs:
           echo "▸ Obraz yigʻilmoqda"
           docker compose build app
 
+          # --build SHART: `docker compose run` mavjud obrazni qayta
+          # ishlatadi, natijada yangi migratsiya eski obrazda boʻlmay
+          # jimgina oʻtkazib yuboriladi.
           echo "▸ Migratsiyalar"
-          docker compose run --rm tools npm run db:migrate:ci
+          docker compose run --rm --build tools npm run db:migrate:ci
 
           echo "▸ Ilova qayta ishga tushmoqda"
           docker compose up -d db app backup

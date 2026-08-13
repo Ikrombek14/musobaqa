@@ -39,7 +39,9 @@ docker compose exec -T db sh -c 'until pg_isready -q; do sleep 1; done'
 echo "  baza tayyor"
 
 step "Migratsiyalar qoʻllanmoqda"
-docker compose run --rm tools npm run db:migrate:ci
+# --build SHART: `run` mavjud obrazni qayta ishlatadi va yangi
+# migratsiya jimgina oʻtkazib yuborilishi mumkin
+docker compose run --rm --build tools npm run db:migrate:ci
 
 step "Ilova ishga tushmoqda"
 docker compose up -d app backup
