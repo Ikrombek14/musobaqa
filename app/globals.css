@@ -202,6 +202,41 @@ body {
   animation: qara-rise var(--dur-slow) var(--ease-out) both;
 }
 
+/* ============================================================
+   Chop etish — QR kodlar va hakam kartochkalari uchun
+   ============================================================ */
+@media print {
+  /* Navigatsiya, tugmalar va yoʻriqnomalar qogʻozga chiqmasin */
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  :root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --text: #000000;
+    --text-muted: #444444;
+    --border: #cccccc;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  /* Kartochka sahifa oxirida ikkiga boʻlinib qolmasin */
+  .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

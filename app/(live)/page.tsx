@@ -9,12 +9,14 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Jonli natijalar",
-  description: "Barcha yoʻnalishlar boʻyicha jonli holat.",
+  description: "Robototexnika musobaqasi — barcha yoʻnalishlar boʻyicha jonli holat.",
 };
 
 export default async function LiveIndexPage() {
   const overview = await getOverview();
   const byCode = new Map(overview.map((row) => [row.code, row]));
+
+  const totalChecked = overview.reduce((sum, row) => sum + row.checkedIn, 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -23,12 +25,18 @@ export default async function LiveIndexPage() {
           16-avgust 2026
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-          Jonli natijalar
+          Robototexnika musobaqasi
         </h1>
-        <p className="mt-3 max-w-[60ch] text-[var(--text-muted)]">
-          Yoʻnalishni tanlang. Natijalar hakam saqlagan zahoti oʻzi yangilanadi —
-          sahifani qayta yuklash shart emas.
+        <p className="mt-3 max-w-[62ch] text-[var(--text-muted)]">
+          Toʻrt yoʻnalish boʻyicha jonli natijalar. Hakam natijani saqlagan
+          zahoti tablo oʻzi yangilanadi — sahifani qayta yuklash shart emas.
         </p>
+        {totalChecked > 0 && (
+          <p className="tnum mt-3 text-sm text-[var(--text-muted)]">
+            <span className="font-bold text-[var(--text)]">{totalChecked}</span> ta jamoa
+            roʻyxatdan oʻtgan
+          </p>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -65,9 +73,24 @@ export default async function LiveIndexPage() {
                   />
                 </div>
 
-                <div className="mt-5">
+                <p className="mt-4 text-sm text-[var(--text-muted)]">
+                  {cat.format === "group_playoff" &&
+                    "Guruh bosqichi va pleyoff. Gʻalaba 3, durang 1 ochko."}
+                  {cat.format === "single_elim" &&
+                    cat.code === "S" &&
+                    "Olib tashlash, 3 tadan 2 (best of 3)."}
+                  {cat.format === "single_elim" &&
+                    cat.code === "RR" &&
+                    "Olib tashlash, bitta raundda yonma-yon poyga."}
+                  {cat.format === "time_trial" &&
+                    "2 urinish, eng yaxshisi. Yoʻldan chiqish +5 soniya."}
+                </p>
+
+                <div className="mt-4">
                   <div className="flex items-baseline justify-between text-sm">
-                    <span className="text-[var(--text-muted)]">Oʻyinlar</span>
+                    <span className="text-[var(--text-muted)]">
+                      {cat.format === "time_trial" ? "Urinishlar" : "Oʻyinlar"}
+                    </span>
                     <span className="tnum font-semibold">
                       {played} / {total || "—"}
                     </span>
@@ -78,7 +101,7 @@ export default async function LiveIndexPage() {
                     aria-valuenow={progress}
                     aria-valuemin={0}
                     aria-valuemax={100}
-                    aria-label={`${cat.name} oʻyinlari bajarildi`}
+                    aria-label={`${cat.name} bajarildi`}
                   >
                     <div
                       className="h-full rounded-full transition-[width] duration-500"

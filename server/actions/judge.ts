@@ -512,5 +512,5 @@ function revalidateJudgeViews(categoryCode: string) {
   revalidatePath("/hakam");
   const slug = CATEGORIES[categoryCode as CategoryCode]?.slug;
   if (slug) revalidatePath(`/jonli/${slug}`);
-  revalidatePath("/jonli");
+  revalidatePath("/"); // jonli tablo indeksi bosh sahifada
 }

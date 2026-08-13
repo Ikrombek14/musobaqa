@@ -19,8 +19,8 @@ jerebyovka, hakamlik va jonli natijalar.
 
 | Yoʻl | Kim uchun |
 |---|---|
-| `/` | Hamma — musobaqa haqida |
-| `/jonli` · `/jonli/[yoʻnalish]` | Jonli tablo (TV va telefon) |
+| `/` | **Jonli tablo** — tomoshabin va TV ekran |
+| `/jonli/[yoʻnalish]` | Yoʻnalish boʻyicha jadval va natijalar |
 | `/hakam` | Hakamlar — PIN bilan kirish |
 | `/admin` | Boshqaruv markazi — real vaqtda hamma narsa |
 | `/admin/checkin` | Roʻyxatdan oʻtkazish stoli |
@@ -28,6 +28,7 @@ jerebyovka, hakamlik va jonli natijalar.
 | `/admin/draw` | Jerebyovka |
 | `/admin/juftliklar` | Kim bilan kim tushgani |
 | `/admin/hakamlar` | Hakamlar CRUD, PIN |
+| `/admin/qr` | Chop etiladigan QR kodlar (hakam va admin kirishi) |
 | `/admin/sozlamalar` | Maydonlar soni, guruh oʻlchami, guruh→maydon |
 
 ---
@@ -109,7 +110,8 @@ Baza maʼlumoti saqlanadi.
       chop etilgan va tarqatilgan
 - [ ] `/admin/sozlamalar` — har yoʻnalishda maydonlar soni toʻgʻri
 - [ ] Bitta telefondan `/hakam` ga kirib koʻring — PIN ishlayaptimi
-- [ ] TV ekranda `/jonli` — «Jonli» indikatori **yashil** boʻlsin
+- [ ] `/admin/qr` — QR kodlar chop etilgan, maydon stollariga qoʻyilgan
+- [ ] TV ekranda bosh sahifa (`/`) — «Jonli» indikatori **yashil** boʻlsin
 - [ ] `ls -lt backups/` — oxirgi nusxa 10 daqiqadan eski emas
 
 ### Roʻyxatdan oʻtkazish

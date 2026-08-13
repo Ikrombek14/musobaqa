@@ -131,7 +131,7 @@ export async function runDraw(categoryCode: string): Promise<DrawState> {
 
     revalidatePath("/admin/draw");
     revalidatePath(`/jonli/${category.slug}`);
-    revalidatePath("/jonli");
+    revalidatePath("/"); // jonli tablo indeksi bosh sahifada
 
     return { ok: true, ...result };
   } catch (err) {

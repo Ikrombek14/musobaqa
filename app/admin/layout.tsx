@@ -4,6 +4,7 @@ import {
   LayoutGrid,
   LogOut,
   ScanLine,
+  QrCode,
   Settings,
   Shuffle,
   Swords,
@@ -24,6 +25,7 @@ const NAV = [
   { href: "/admin/draw", label: "Jerebyovka", icon: Shuffle },
   { href: "/admin/juftliklar", label: "Juftliklar", icon: Swords },
   { href: "/admin/hakamlar", label: "Hakamlar", icon: Gavel },
+  { href: "/admin/qr", label: "QR kodlar", icon: QrCode },
   { href: "/admin/sozlamalar", label: "Sozlamalar", icon: Settings },
 ] as const;
 
@@ -53,7 +55,12 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
             </span>
           </Link>
 
-          <nav aria-label="Admin boʻlimlari" className="flex items-center gap-1">
+          {/* Boʻlimlar koʻp — kichik ekranda gorizontal siljiydi,
+              sahifa oʻzi esa hech qachon yon tomonga surilmaydi */}
+          <nav
+            aria-label="Admin boʻlimlari"
+            className="-mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1"
+          >
             {NAV.map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
