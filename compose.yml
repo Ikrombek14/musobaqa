@@ -1,0 +1,144 @@
+# ============================================================
+# QARA Musobaqa — bitta fayl, butun tizim
+#
+#   docker compose up -d
+#
+# Ayni shu fayl VPS'da ham, musobaqa zalidagi noutbukda ham ishlaydi.
+# Internet uzilib qolsa check-in va hakam paneli lokal tarmoqda
+# davom etadi (faqat HTTPS Caddy'siz boʻlmaydi — quyida izoh bor).
+# ============================================================
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-qara}
+      POSTGRES_USER: ${POSTGRES_USER:-qara_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env da boʻlishi shart}
+      # Toshkent vaqti — loglar va created_at chalkashmasin
+      TZ: Asia/Tashkent
+      PGTZ: Asia/Tashkent
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      # app faqat baza QABUL QILISHGA tayyor boʻlgach ishga tushsin
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-qara_app} -d ${POSTGRES_DB:-qara}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    command:
+      - postgres
+      # 2 GB RAM li VPS uchun oʻlchangan qiymatlar
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - max_connections=100
+      - -c
+      - log_min_duration_statement=500
+    networks: [qara]
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Host portiga chiqaramiz: serverda allaqachon reverse proxy bor
+    # boʻlsa (masalan boshqa loyihaning Caddy'si 80/443 ni band qilgan),
+    # oʻsha proxy shu portga yoʻnaltiradi. Oʻz Caddy'mizni ishlatganda
+    # ham zarar qilmaydi.
+    ports:
+      - "${APP_PORT:-4600}:3000"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-qara_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-qara}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET .env da boʻlishi shart}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD .env da boʻlishi shart}
+      UPLOAD_DIR: /app/uploads
+      NODE_ENV: production
+      TZ: Asia/Tashkent
+    volumes:
+      - uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [qara]
+
+  # Oʻz reverse proxy'imiz — FAQAT 80/443 boʻsh boʻlsa.
+  # Serverda boshqa Caddy/nginx bor boʻlsa bu xizmat ishga tushmaydi
+  # (profil bilan oʻchirilgan), oʻrniga mavjud proxy `app` ning host
+  # portiga yoʻnaltiriladi.
+  #   Yoqish:  docker compose --profile own-proxy up -d
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["own-proxy"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # .env dagi DOMAIN. Domensiz sinov uchun: DOMAIN=:80
+      DOMAIN: ${DOMAIN:?DOMAIN .env da boʻlishi shart}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [qara]
+
+  # Migratsiya / seed / tekshiruv skriptlari.
+  # Doimiy ishlamaydi — faqat chaqirilganda:
+  #   docker compose run --rm tools npm run db:migrate:ci
+  #   docker compose run --rm tools npm run db:seed:ci -- --force
+  #   docker compose run --rm tools npm run verify:draw
+  tools:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-qara_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-qara}
+      TZ: Asia/Tashkent
+    networks: [qara]
+
+  # Har 10 daqiqada pg_dump. Musobaqa kuni MAJBURIY.
+  backup:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-qara_app}
+      POSTGRES_DB: ${POSTGRES_DB:-qara}
+      TZ: Asia/Tashkent
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    networks: [qara]
+
+volumes:
+  db-data:
+  uploads:
+  caddy-data:
+  caddy-config:
+
+networks:
+  qara:

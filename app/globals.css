@@ -1,0 +1,214 @@
+@import "tailwindcss";
+
+/* ============================================================
+   QARA Musobaqa — design tokens
+   Brend: Robbit (sariq #F0C419 / to'q sariq #E8772E / quyuq #1C2027)
+   Ikki sirt (surface): default = yorug' (admin, hakam),
+                        [data-surface="tv"] = quyuq (jonli tablo).
+   Bitta dizayn tili, ikki kontekst.
+   ============================================================ */
+
+:root {
+  /* — Surface — */
+  --bg: #ffffff;
+  --bg-subtle: #f7f7f5;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --border: #e6e4df;
+  --border-strong: #d5d2ca;
+
+  /* — Text — */
+  --text: #1c2027;
+  --text-muted: #6b6f76;
+  --text-subtle: #9aa0a6;
+
+  /* — Brand — */
+  --brand: #f0c419;
+  --brand-hover: #dcb00d;
+  --brand-soft: #fef8e0;
+  --brand-ink: #1c2027; /* brend fonida matn rangi */
+  --accent: #e8772e;
+  --accent-soft: #fdf1e7;
+
+  /* — Semantic — */
+  --success: #1faa4b;
+  --success-soft: #eefaf1;
+  --warning: #d97706;
+  --warning-soft: #fdf6e8;
+  --danger: #e5484d;
+  --danger-soft: #fdeff0;
+
+  /* — Yo'nalish ranglari — */
+  --cat-r: #2f7df6; /* Robofutbol */
+  --cat-s: #e5484d; /* Sumo */
+  --cat-l: #1faa4b; /* Linefollower */
+  --cat-rr: #e8772e; /* Robrace */
+
+  --focus-ring: #2f7df6;
+
+  /* — Radius — */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* — Shadow — */
+  --shadow-sm: 0 1px 2px rgb(28 32 39 / 0.04), 0 1px 3px rgb(28 32 39 / 0.06);
+  --shadow-md: 0 2px 4px rgb(28 32 39 / 0.04), 0 4px 12px rgb(28 32 39 / 0.08);
+  --shadow-lg: 0 8px 24px rgb(28 32 39 / 0.1), 0 2px 6px rgb(28 32 39 / 0.05);
+
+  /* — Motion — */
+  --dur-instant: 100ms;
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 300ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Quyuq sirt — jonli tablo (TV) va sahna rejimi.
+   Soyalar quyuqda ishlamaydi: qatlamlar yorug'lik bilan ajratiladi. */
+[data-surface="tv"] {
+  --bg: #0f1216;
+  --bg-subtle: #171b21;
+  --surface: #1c2027;
+  --surface-raised: #242932;
+  --border: #2a2f37;
+  --border-strong: #3a404a;
+
+  --text: #f5f6f7;
+  --text-muted: #a3aab4;
+  --text-subtle: #757c86;
+
+  --brand-soft: #2a2611;
+  --accent-soft: #2c1d12;
+  --success-soft: #14261a;
+  --warning-soft: #2a2011;
+  --danger-soft: #2c1618;
+
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-cat-r: var(--cat-r);
+  --color-cat-s: var(--cat-s);
+  --color-cat-l: var(--cat-l);
+  --color-cat-rr: var(--cat-rr);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-mono-stack);
+
+  --ease-out: var(--ease-out);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Fokus — hech qayerda outline:none yolg'iz emas */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Raqamlar sakramasin: jadval, hisob, taymer */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Jonli indikator — faqat rostdan realtime ulanganda ko'rsatiladi */
+@keyframes qara-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+.live-dot {
+  animation: qara-pulse 1.8s var(--ease-in-out) infinite;
+}
+
+/* Natija yangilanganda qator bir marta yonib qo'yadi */
+@keyframes qara-flash {
+  from {
+    background-color: var(--brand-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.flash-once {
+  animation: qara-flash 1.2s var(--ease-out) 1;
+}
+
+@keyframes qara-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise-in {
+  animation: qara-rise var(--dur-slow) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

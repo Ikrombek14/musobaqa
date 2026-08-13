@@ -1,0 +1,158 @@
+name: Deploy
+
+# `main` ga push qilinganda sayt avtomatik yangilanadi.
+# Qoʻlda ham ishga tushirsa boʻladi (Actions → Deploy → Run workflow).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Ketma-ket deploy: ikkita push bir vaqtda serverga urilmasin
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # ------------------------------------------------------------
+  # 1. Tekshiruv. Yiqilsa deploy BOʻLMAYDI — buzuq kod serverga
+  #    chiqmaydi.
+  # ------------------------------------------------------------
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: qara
+          POSTGRES_USER: qara_app
+          POSTGRES_PASSWORD: ci_password
+        options: >-
+          --health-cmd "pg_isready -U qara_app -d qara"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgres://qara_app:ci_password@127.0.0.1:5432/qara
+      SESSION_SECRET: ci-only-secret-at-least-32-characters-long
+      ADMIN_PASSWORD: ci_admin_password
+      UPLOAD_DIR: ./uploads
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tiplarni tekshirish
+        run: npx tsc --noEmit
+
+      - name: Jerebyovka mantiqi
+        run: npm run verify:draw
+
+      - name: Baza tayyorlanmoqda
+        run: |
+          sudo apt-get install -y --no-install-recommends postgresql-client >/dev/null
+          PGPASSWORD=ci_password psql -h 127.0.0.1 -U qara_app -d qara -c "create extension if not exists pg_trgm;"
+          npx tsx scripts/migrate.ts
+          npx tsx scripts/seed.ts --force
+
+      - name: Raqamlash va avtomatik turlar
+        run: |
+          npx tsx scripts/verify-numbering.ts
+          node --import tsx --conditions=react-server scripts/verify-progression.ts
+
+      - run: npm run build
+
+      - name: Brauzer sinovlari (E2E)
+        run: |
+          npx playwright install --with-deps chromium
+          npx tsx scripts/seed.ts --force
+
+          # Muhit oʻzgaruvchilari job'dan keladi, `.env.local` kerak emas
+          npm run start:e2e:ci &
+
+          for i in $(seq 1 45); do
+            if curl -sf -o /dev/null http://127.0.0.1:3100/; then
+              echo "server tayyor"
+              break
+            fi
+            [ "$i" -eq 45 ] && { echo "server koʻtarilmadi"; exit 1; }
+            sleep 2
+          done
+
+          npm run e2e
+
+      - name: Xato boʻlsa — sinov izlari
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+  # ------------------------------------------------------------
+  # 2. Deploy. Faqat tekshiruvdan oʻtgach.
+  # ------------------------------------------------------------
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: SSH kalitini tayyorlash
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Serverda yangilash
+        run: |
+          ssh -o BatchMode=yes "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" bash -se <<'REMOTE'
+          set -euo pipefail
+          cd /opt/musobaqa
+
+          echo "▸ Kod yangilanmoqda"
+          git fetch --all --prune
+          git reset --hard origin/main
+
+          echo "▸ Obraz yigʻilmoqda"
+          docker compose build app
+
+          echo "▸ Migratsiyalar"
+          docker compose run --rm tools npm run db:migrate:ci
+
+          echo "▸ Ilova qayta ishga tushmoqda"
+          docker compose up -d db app backup
+
+          echo "▸ Holat tekshirilmoqda"
+          for i in $(seq 1 30); do
+            if docker compose exec -T app node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+              echo "✓ ilova javob bermoqda"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "✗ ilova koʻtarilmadi — loglar:"
+          docker compose logs --tail=50 app
+          exit 1
+          REMOTE
+
+      - name: Eski obrazlarni tozalash
+        if: success()
+        run: |
+          ssh -o BatchMode=yes "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "docker image prune -f --filter 'until=168h' >/dev/null && echo tozalandi"

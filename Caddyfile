@@ -1,0 +1,55 @@
+# ============================================================
+# Caddy — HTTPS va reverse proxy
+#
+# HTTPS webcam uchun SHART: brauzer kamerani faqat https:// yoki
+# localhost da beradi. Caddy sertifikatni oʻzi oladi va yangilaydi.
+# ============================================================
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# ---- SSE oqimi ----
+	# flush_interval -1: Caddy javobni BUFERLAMAYDI va har bir kadrni
+	# darhol uzatadi. Busiz natija tabloga 30 soniyagacha kechikib
+	# borishi mumkin — realtime'ning butun maʼnosi yoʻqoladi.
+	handle /api/stream* {
+		reverse_proxy app:3000 {
+			flush_interval -1
+			transport http {
+				# Oqim uzoq ochiq turadi — timeout qoʻymaymiz
+				read_timeout 0
+				write_timeout 0
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy app:3000 {
+			# Suratlar 3 MB gacha; zaxira bilan qoʻyamiz
+			request_body {
+				max_size 12MB
+			}
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 20MB
+			roll_keep 5
+		}
+		# Heartbeat va statik fayllar logni toʻldirmasin
+		format filter {
+			wrap console
+			fields {
+				request>headers>Cookie delete
+			}
+		}
+	}
+}
