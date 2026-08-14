@@ -85,7 +85,7 @@ function CategorySettingsCard({ settings }: { settings: CategorySettings }) {
             id={`fields-${settings.code}`}
             name="fieldCount"
             label="Maydonlar soni"
-            hint="Nechta maydonda parallel oʻyin boradi"
+            hint="Nechta maydonda parallel oʻyin boradi. Yarim final va final har doim 1-maydonda."
             min={1}
             max={12}
             value={fieldCount}

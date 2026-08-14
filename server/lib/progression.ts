@@ -40,7 +40,13 @@ export async function insertBracket(
         round: match.round,
         slot: match.slot,
         orderNo,
-        fieldNo: match.round === 1 && !match.isBye ? (orderNo % fields) + 1 : null,
+        // Yarim finaldan boshlab hammasi 1-maydonda (qarang: assignFields)
+        fieldNo:
+          match.round === 1 && !match.isBye
+            ? bracket.totalRounds - match.round <= 1
+              ? 1
+              : (orderNo % fields) + 1
+            : null,
         teamAId: match.teamAId,
         teamBId: match.teamBId,
         isBye: match.isBye,
@@ -269,6 +275,7 @@ export async function assignFields(
     .select({
       id: schema.matches.id,
       groupId: schema.matches.groupId,
+      stage: schema.matches.stage,
       round: schema.matches.round,
       slot: schema.matches.slot,
     })
@@ -286,6 +293,27 @@ export async function assignFields(
     .orderBy(asc(schema.matches.round), asc(schema.matches.slot));
 
   if (ready.length === 0) return 0;
+
+  /**
+   * Yarim final va undan keyingi oʻyinlar — HAR DOIM 1-maydonda.
+   *
+   * Tashkilotchi qarori: chorak finaldan keyin musobaqa bitta maydonga
+   * yigʻiladi. Sabablari amaliy — tomoshabin bitta joyga qaraydi, bosh
+   * hakam oʻzi boshqaradi, muhim oʻyinlar parallel ketib qolmaydi.
+   *
+   * 3-oʻrin oʻyini ham shu yerga tushadi: u final bilan bir bosqichda.
+   */
+  const [deepest] = await tx
+    .select({ maxRound: sql<number | null>`max(${schema.matches.round})` })
+    .from(schema.matches)
+    .where(
+      and(
+        eq(schema.matches.categoryCode, categoryCode),
+        eq(schema.matches.stage, "playoff"),
+      ),
+    );
+  const finalRound = deepest?.maxRound ?? null;
+  const soloFrom = finalRound === null ? null : finalRound - 1;
 
   // Maydonlardagi joriy navbat
   const load = new Map<number, number>();
@@ -310,9 +338,13 @@ export async function assignFields(
   }
 
   for (const match of ready) {
+    const isDeepPlayoff =
+      match.stage === "playoff" && soloFrom !== null && match.round >= soloFrom;
     const fromGroup = match.groupId ? fieldByGroup.get(match.groupId) : undefined;
-    const field =
-      fromGroup && fromGroup <= fields
+
+    const field = isDeepPlayoff
+      ? 1
+      : fromGroup && fromGroup <= fields
         ? fromGroup
         : [...load.entries()].sort((a, b) => a[1] - b[1] || a[0] - b[0])[0][0];
 
