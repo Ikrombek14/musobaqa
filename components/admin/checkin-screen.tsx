@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Camera, Check, Pencil, RotateCcw, Search, UserPlus, X } from "lucide-react";
+import { Camera, Check, RotateCcw, Search, UserPlus, Users, X } from "lucide-react";
 import { CATEGORIES, CATEGORY_LIST, isCategoryCode } from "@/lib/categories";
 import {
+  addPartner,
   checkInTeam,
   createWalkInTeam,
   saveRobotPhoto,
@@ -34,7 +35,10 @@ export function CheckInScreen() {
   /** Yorliq qadami uchun yoʻnalish — roʻyxatdan ham, yangi jamoadan ham keladi */
   const [tagCategory, setTagCategory] = useState<string | null>(null);
   const [result, setResult] = useState<CheckInResult | null>(null);
-  const [editing, setEditing] = useState(false);
+  /** Tasdiq ekranida joyida tahrirlanadigan maydonlar */
+  const [draftCategory, setDraftCategory] = useState("");
+  const [draftName, setDraftName] = useState("");
+  const [partner, setPartner] = useState<SearchHit | null>(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const requestId = useRef(0);
@@ -65,17 +69,62 @@ export function CheckInScreen() {
     setSelected(null);
     setTagCategory(null);
     setResult(null);
-    setEditing(false);
+    setDraftCategory("");
+    setDraftName("");
+    setPartner(null);
     setWalkInOpen(false);
     inputRef.current?.focus();
   };
 
+  const openTeam = (hit: SearchHit) => {
+    setSelected(hit);
+    setDraftCategory(hit.categoryCode);
+    setDraftName(hit.name);
+    setPartner(null);
+    setResult(null);
+    setStep("confirm");
+  };
+
+  /**
+   * «Keldi» — bitta bosishda hammasi.
+   *
+   * Tuzatilgan yoʻnalish/ism, qoʻshilgan sherik va check-in shu yerda
+   * ketma-ket bajariladi. Roʻyxatdan oʻtkazish stolida navbat turadi,
+   * shuning uchun har biri uchun alohida tugma qoʻyilmagan.
+   */
   const confirmArrival = (team: SearchHit) => {
     startTransition(async () => {
+      setResult(null);
+      let categoryCode = team.categoryCode;
+
+      const edited =
+        draftCategory !== team.categoryCode || draftName.trim() !== team.name;
+
+      if (edited) {
+        const form = new FormData();
+        form.set("teamId", String(team.id));
+        form.set("categoryCode", draftCategory);
+        form.set("name", draftName.trim());
+        const res = await updateTeamAtCheckIn(null, form);
+        if (!res.ok) {
+          setResult(res);
+          return;
+        }
+        categoryCode = draftCategory;
+      }
+
+      if (partner) {
+        const res = await addPartner(team.id, partner.id);
+        if (!res.ok) {
+          setResult(res);
+          return;
+        }
+      }
+
       const res = await checkInTeam(team.id);
       setResult(res);
       if (res.ok) {
-        setTagCategory(team.categoryCode);
+        setTagCategory(categoryCode);
         setStep("tag");
       }
     });
@@ -117,29 +166,53 @@ export function CheckInScreen() {
 
   /* ---------------- 2-qadam: tasdiq ---------------- */
   if (step === "confirm" && selected) {
-    if (editing) {
-      return (
-        <EditForm
-          team={selected}
-          onCancel={() => setEditing(false)}
-          onSaved={(updated) => {
-            setSelected(updated);
-            setEditing(false);
-            setResult(null);
-          }}
-        />
-      );
-    }
+    const moved = draftCategory !== selected.categoryCode;
+    const maxMembers = isCategoryCode(draftCategory)
+      ? CATEGORIES[draftCategory].maxMembers
+      : 1;
+    const memberList = (selected.members ?? "")
+      .split(",")
+      .map((m) => m.trim())
+      .filter(Boolean);
 
     return (
       <div className="mx-auto w-full max-w-xl">
         <Card className="p-5">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                {CATEGORIES[selected.categoryCode as keyof typeof CATEGORIES]?.name}
-              </p>
-              <h2 className="mt-1 text-xl font-bold">{selected.name}</h2>
+            {/*
+              Yoʻnalish va ism shu yerning oʻzida tahrirlanadi.
+              Stolda navbat turadi: qoʻshimcha tugma yoki alohida
+              ekran har bir bolaga bir necha soniya qoʻshadi.
+              Oʻzgarish «Keldi» bosilganda saqlanadi — baribir
+              bosiladigan tugma, ortiqcha click yoʻq.
+            */}
+            <div className="min-w-0 flex-1">
+              <label htmlFor="confirm-category" className="sr-only">
+                Yoʻnalish
+              </label>
+              <select
+                id="confirm-category"
+                value={draftCategory}
+                onChange={(e) => setDraftCategory(e.target.value)}
+                className="-ml-1 h-7 rounded border-0 bg-transparent px-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] outline-none hover:bg-[var(--bg-subtle)] focus:bg-[var(--bg-subtle)] focus:ring-2 focus:ring-[var(--focus-ring)]"
+              >
+                {CATEGORY_LIST.map((cat) => (
+                  <option key={cat.code} value={cat.code}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+
+              <label htmlFor="confirm-name" className="sr-only">
+                Ism / jamoa nomi
+              </label>
+              <input
+                id="confirm-name"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                autoComplete="off"
+                className="-ml-1 mt-0.5 w-full rounded border-0 bg-transparent px-1 text-xl font-bold outline-none hover:bg-[var(--bg-subtle)] focus:bg-[var(--bg-subtle)] focus:ring-2 focus:ring-[var(--focus-ring)]"
+              />
             </div>
             <Button variant="ghost" size="sm" onClick={reset} aria-label="Yopish">
               <X className="size-4" aria-hidden="true" />
@@ -150,25 +223,52 @@ export function CheckInScreen() {
             <Field label="Maktab" value={selected.school} />
             <Field label="Viloyat" value={selected.region} />
             <Field label="Murabbiy" value={selected.coach} />
-            <Field label="Ishtirokchilar" value={selected.members} />
+            <Field label="Ishtirokchilar" value={memberList.join(", ") || null} />
           </dl>
 
           {/*
-            Stolda eng koʻp uchraydigan tuzatish — yoʻnalish. Bola
-            roʻyxatda sumo deb yozilgan boʻlishi va robofutboldan
-            qatnashmoqchi boʻlishi mumkin.
+            Robofutbolda bitta raqam ikki bolaga beriladi (F1 qogʻozi
+            ikki nusxada). Sherik shu yerda qoʻshiladi — «Keldi» bilan
+            bir vaqtda saqlanadi, alohida qadam yoʻq.
           */}
-          <Button
-            variant="secondary"
-            size="sm"
-            className="mt-4"
-            onClick={() => setEditing(true)}
-          >
-            <Pencil className="size-4" aria-hidden="true" />
-            Yoʻnalish yoki ismni tuzatish
-          </Button>
+          {maxMembers > 1 && (
+            <div className="mt-4">
+              {memberList.length >= maxMembers ? (
+                <p className="rounded-[var(--radius-md)] bg-[var(--bg-subtle)] px-3 py-2 text-sm text-[var(--text-muted)]">
+                  Bitta raqamda {maxMembers} ta ishtirokchi — toʻldi.
+                </p>
+              ) : partner ? (
+                <div className="flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--success-soft)] px-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--success)]">
+                    Sherigi: {partner.name}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPartner(null)}
+                    aria-label="Sherikni olib tashlash"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
+              ) : (
+                <PartnerPicker
+                  categoryCode={draftCategory}
+                  excludeId={selected.id}
+                  onPick={setPartner}
+                />
+              )}
+            </div>
+          )}
 
-          {selected.checkedInAt && (
+          {moved && selected.number && (
+            <p className="mt-4 rounded-[var(--radius-md)] bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]">
+              <span className="tnum font-bold">{selected.number}</span> yorligʻi boʻshaydi —
+              bolaga yangi yoʻnalishning qogʻozini bering.
+            </p>
+          )}
+
+          {!moved && selected.checkedInAt && (
             <p className="mt-4 rounded-[var(--radius-md)] bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]">
               Bu jamoa allaqachon roʻyxatdan oʻtgan
               {selected.number ? ` · raqami ${selected.number}` : ""}.
@@ -193,7 +293,11 @@ export function CheckInScreen() {
               onClick={() => confirmArrival(selected)}
             >
               <Check className="size-5" aria-hidden="true" />
-              {selected.number ? "Yorliqni almashtirish" : "Keldi"}
+              {moved
+                ? `Keldi · ${CATEGORIES[draftCategory as keyof typeof CATEGORIES]?.name}`
+                : selected.number
+                  ? "Yorliqni almashtirish"
+                  : "Keldi"}
             </Button>
             <Button variant="secondary" size="xl" onClick={reset} disabled={pending}>
               Orqaga
@@ -256,11 +360,7 @@ export function CheckInScreen() {
               <li key={hit.id} className="border-b border-[var(--border)] last:border-0">
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelected(hit);
-                    setResult(null);
-                    setStep("confirm");
-                  }}
+                  onClick={() => openTeam(hit)}
                   className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-subtle)]"
                 >
                   <TeamNumber
@@ -304,142 +404,99 @@ export function CheckInScreen() {
   );
 }
 
+/* ============================================================
+   Sherik qidiruvi
+
+   Robofutbolda bitta raqam ikki bolaga beriladi. Sherik roʻyxatda
+   alohida qator boʻlib turadi — shu yerdan topib biriktiriladi.
+   ============================================================ */
+function PartnerPicker({
+  categoryCode,
+  excludeId,
+  onPick,
+}: {
+  categoryCode: string;
+  excludeId: number;
+  onPick: (hit: SearchHit) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const requestId = useRef(0);
+
+  useEffect(() => {
+    const text = query.trim();
+    if (text.length < 2) {
+      setHits([]);
+      return;
+    }
+    const id = ++requestId.current;
+    const timer = setTimeout(async () => {
+      const found = await searchTeamsAction(text);
+      if (id !== requestId.current) return;
+      // Faqat shu yoʻnalishdagi, hali biriktirilmagan boshqa bolalar
+      setHits(found.filter((h) => h.categoryCode === categoryCode && h.id !== excludeId));
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [query, categoryCode, excludeId]);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor="partner-search" className="flex items-center gap-1.5 text-sm font-medium">
+        <Users className="size-4 text-[var(--text-muted)]" aria-hidden="true" />
+        Sherigi
+        <span className="text-xs font-normal text-[var(--text-subtle)]">
+          bitta raqamda ikki bola oʻynaydi
+        </span>
+      </label>
+      <input
+        id="partner-search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Sherigining ismini yozing…"
+        autoComplete="off"
+        className="h-11 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-base outline-none focus:border-[var(--focus-ring)] focus:shadow-[0_0_0_3px_rgb(47_125_246/0.15)]"
+      />
+
+      {hits.length > 0 && (
+        <ul className="max-h-56 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border)]">
+          {hits.map((hit) => (
+            <li key={hit.id} className="border-b border-[var(--border)] last:border-0">
+              <button
+                type="button"
+                onClick={() => {
+                  onPick(hit);
+                  setQuery("");
+                  setHits([]);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--bg-subtle)]"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{hit.name}</span>
+                  <span className="block truncate text-xs text-[var(--text-muted)]">
+                    {hit.school ?? "—"}
+                  </span>
+                </span>
+                {hit.number && <Badge tone="neutral">{hit.number}</Badge>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {query.trim().length >= 2 && hits.length === 0 && (
+        <p className="text-xs text-[var(--text-muted)]">
+          Shu yoʻnalishda bunday ishtirokchi topilmadi.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Field({ label, value }: { label: string; value: string | null }) {
   return (
     <div>
       <dt className="text-xs text-[var(--text-muted)]">{label}</dt>
       <dd className="mt-0.5 font-medium">{value || "—"}</dd>
-    </div>
-  );
-}
-
-/* ============================================================
-   Stolda tuzatish — yoʻnalish, ism, ishtirokchilar
-
-   Yoʻnalish oʻzgarsa eski yorliq boʻshaydi (S12 qogʻozi robofutbolda
-   ishlamaydi) va bola yangi qogʻozni oladi. Shuning uchun tahrirdan
-   keyin yorliq qadami baribir bosib oʻtiladi.
-   ============================================================ */
-function EditForm({
-  team,
-  onCancel,
-  onSaved,
-}: {
-  team: SearchHit;
-  onCancel: () => void;
-  onSaved: (team: SearchHit) => void;
-}) {
-  const [categoryCode, setCategoryCode] = useState(team.categoryCode);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  const moved = categoryCode !== team.categoryCode;
-
-  return (
-    <div className="mx-auto w-full max-w-xl">
-      <Card className="p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-bold">Maʼlumotni tuzatish</h2>
-          <Button variant="ghost" size="sm" onClick={onCancel} aria-label="Yopish">
-            <X className="size-4" aria-hidden="true" />
-          </Button>
-        </div>
-
-        <form
-          className="mt-4 flex flex-col gap-3"
-          action={(formData) =>
-            startTransition(async () => {
-              setError(null);
-              const res = await updateTeamAtCheckIn(null, formData);
-              if (res.ok) {
-                onSaved({
-                  ...team,
-                  name: res.name,
-                  categoryCode,
-                  number: res.number || null,
-                });
-              } else setError(res.error);
-            })
-          }
-        >
-          <input type="hidden" name="teamId" value={team.id} />
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-category" className="text-sm font-medium">
-              Yoʻnalish
-            </label>
-            <select
-              id="edit-category"
-              name="categoryCode"
-              value={categoryCode}
-              onChange={(e) => setCategoryCode(e.target.value)}
-              className="h-11 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-base"
-            >
-              {CATEGORY_LIST.map((cat) => (
-                <option key={cat.code} value={cat.code}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {moved && team.number && (
-            <p className="rounded-[var(--radius-md)] bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]">
-              <span className="tnum font-bold">{team.number}</span> yorligʻi boʻshaydi —
-              bolaga yangi yoʻnalishning qogʻozini bering.
-            </p>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-name" className="text-sm font-medium">
-              Ism / jamoa nomi
-            </label>
-            <input
-              id="edit-name"
-              name="name"
-              required
-              defaultValue={team.name}
-              autoComplete="off"
-              className="h-11 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-base outline-none focus:border-[var(--focus-ring)] focus:shadow-[0_0_0_3px_rgb(47_125_246/0.15)]"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-members" className="text-sm font-medium">
-              Ishtirokchilar
-              <span className="ml-1 text-xs text-[var(--text-subtle)]">
-                boʻsh qoldirilsa oʻzgarmaydi
-              </span>
-            </label>
-            <input
-              id="edit-members"
-              name="members"
-              defaultValue={team.members ?? ""}
-              autoComplete="off"
-              className="h-11 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-base outline-none focus:border-[var(--focus-ring)] focus:shadow-[0_0_0_3px_rgb(47_125_246/0.15)]"
-            />
-          </div>
-
-          {error && (
-            <p
-              role="alert"
-              className="rounded-[var(--radius-md)] bg-[var(--danger-soft)] px-3 py-2 text-sm font-medium text-[var(--danger)]"
-            >
-              {error}
-            </p>
-          )}
-
-          <div className="flex gap-2">
-            <Button type="submit" variant="primary" size="lg" block loading={pending}>
-              <Check className="size-5" aria-hidden="true" />
-              Saqlash
-            </Button>
-            <Button type="button" variant="ghost" size="lg" onClick={onCancel} disabled={pending}>
-              Bekor
-            </Button>
-          </div>
-        </form>
-      </Card>
     </div>
   );
 }
@@ -791,7 +848,7 @@ function WalkInForm({
           name="members"
           label="Ishtirokchilar (vergul bilan)"
           required
-          hint="Masalan: Alisher Toshmatov, Malika Rasulova"
+          hint="Robofutbolda ikki bola bitta raqam ostida oʻynaydi — ikkalasini yozing. Qolgan yoʻnalishlarda bitta."
         />
         <TextField
           name="name"

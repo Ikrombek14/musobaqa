@@ -3,13 +3,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
-import { eq, or, sql } from "drizzle-orm";
+import { eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/lib/db";
 import { env } from "@/lib/env";
 import { emit } from "@/lib/realtime/emit";
 import { requireStaff } from "@/lib/auth/session";
-import { isCategoryCode } from "@/lib/categories";
+import { CATEGORIES, isCategoryCode } from "@/lib/categories";
 import { normalizeSearch } from "@/lib/format";
 import { toId } from "@/lib/validate";
 import { searchTeams, type SearchHit } from "@/server/queries/competition";
@@ -221,6 +221,143 @@ export async function updateTeamAtCheckIn(
 }
 
 /* ============================================================
+   Sherik — bitta raqam ostidagi ikkinchi ishtirokchi
+   ============================================================ */
+
+/**
+ * Ikki roʻyxat qatorini bitta jamoaga birlashtiradi.
+ *
+ * Robofutbolda ikki bola bitta raqam ostida oʻynaydi: F1 qogʻozi ikki
+ * nusxada chop etilgan, har robotga bittadan yopishtiriladi. Roʻyxatda
+ * esa ular alohida-alohida yozilgan — stolda birlashtiriladi.
+ *
+ * `source` qatori oʻchadi, ishtirokchilari `target` ga koʻchadi.
+ * Uchinchisi qoʻshilmaydi: `maxMembers` chegarasi tekshiriladi.
+ */
+export async function addPartner(
+  rawTargetId: unknown,
+  rawSourceId: unknown,
+): Promise<CheckInResult> {
+  const staff = await requireStaff().catch(() => null);
+  if (!staff) return { ok: false, error: "Qayta kiring" };
+
+  const targetId = toId(rawTargetId);
+  const sourceId = toId(rawSourceId);
+  if (targetId === null || sourceId === null) return { ok: false, error: "Notoʻgʻri jamoa" };
+  if (targetId === sourceId) return { ok: false, error: "Bitta odamni oʻziga qoʻshib boʻlmaydi" };
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Har doim kichik id birinchi qulflanadi — ikki stol bir vaqtda
+      // birlashtirsa ham deadlock boʻlmaydi
+      const ids = [targetId, sourceId].sort((a, b) => a - b);
+      const locked = await tx
+        .select()
+        .from(schema.teams)
+        .where(inArray(schema.teams.id, ids))
+        .for("update");
+
+      const target = locked.find((t) => t.id === targetId);
+      const source = locked.find((t) => t.id === sourceId);
+      if (!target || !source) throw new Error("Jamoa topilmadi");
+
+      if (target.categoryCode !== source.categoryCode) {
+        throw new Error("Ikkalasi bir yoʻnalishda boʻlishi kerak");
+      }
+
+      const limit = isCategoryCode(target.categoryCode)
+        ? CATEGORIES[target.categoryCode].maxMembers
+        : 1;
+
+      const counts = await tx
+        .select({ teamId: schema.participants.teamId, n: sql<number>`count(*)::int` })
+        .from(schema.participants)
+        .where(inArray(schema.participants.teamId, ids))
+        .groupBy(schema.participants.teamId);
+
+      const have = counts.find((c) => c.teamId === targetId)?.n ?? 0;
+      const adding = counts.find((c) => c.teamId === sourceId)?.n ?? 0;
+
+      if (have + adding > limit) {
+        throw new Error(
+          `Bitta raqamga ${limit} ta ishtirokchi biriktiriladi — ${target.number ?? "bu raqam"} da ${have} ta bor.`,
+        );
+      }
+
+      // Jadvalga tushgan qatorni oʻchirib boʻlmaydi
+      const [inMatch] = await tx
+        .select({ id: schema.matches.id })
+        .from(schema.matches)
+        .where(or(eq(schema.matches.teamAId, sourceId), eq(schema.matches.teamBId, sourceId)))
+        .limit(1);
+      if (inMatch) {
+        throw new Error("Sherik jadvalga kiritilgan — avval jerebyovkani bekor qiling.");
+      }
+
+      await tx
+        .update(schema.participants)
+        .set({ teamId: targetId })
+        .where(eq(schema.participants.teamId, sourceId));
+
+      // Sherikning oʻz yorligʻi boʻlsa boʻshaydi: ikkalasi bitta raqamda
+      await tx
+        .update(schema.tags)
+        .set({ teamId: null, assignedAt: null, assignedBy: null })
+        .where(eq(schema.tags.teamId, sourceId));
+
+      await tx.delete(schema.teams).where(eq(schema.teams.id, sourceId));
+
+      const names = await tx
+        .select({ fullName: schema.participants.fullName })
+        .from(schema.participants)
+        .where(eq(schema.participants.teamId, targetId));
+
+      await tx
+        .update(schema.teams)
+        .set({
+          searchText: normalizeSearch(
+            [target.name, target.school, target.coach, source.name, ...names.map((n) => n.fullName)]
+              .filter(Boolean)
+              .join(" "),
+          ),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.teams.id, targetId));
+
+      await tx.insert(schema.auditLog).values({
+        actor: staff.name,
+        action: "team.add_partner",
+        entity: "team",
+        entityId: String(targetId),
+        before: { sourceId, sourceName: source.name, sourceNumber: source.number },
+        after: { targetId, number: target.number, members: names.map((n) => n.fullName) },
+      });
+
+      await emit(tx, target.categoryCode, "team.checked_in", {
+        teamId: targetId,
+        number: target.number,
+        name: target.name,
+        merged: sourceId,
+      });
+
+      return {
+        ok: true as const,
+        teamId: targetId,
+        number: target.number ?? "",
+        name: target.name,
+      };
+    });
+
+    revalidatePath("/admin/checkin");
+    revalidatePath("/admin/jamoalar");
+    revalidatePath("/admin");
+    return result;
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/* ============================================================
    «Roʻyxatda yoʻq» — joyida qoʻshish
    ============================================================ */
 
@@ -270,6 +407,14 @@ export async function createWalkInTeam(
 
   if (members.length === 0 && !(input.name ?? "").trim()) {
     return { ok: false, error: "Kamida ishtirokchi ismini yozing" };
+  }
+
+  const limit = CATEGORIES[input.categoryCode as keyof typeof CATEGORIES].maxMembers;
+  if (members.length > limit) {
+    return {
+      ok: false,
+      error: `${CATEGORIES[input.categoryCode as keyof typeof CATEGORIES].name}da bitta raqamga ${limit} ta ishtirokchi biriktiriladi.`,
+    };
   }
 
   try {

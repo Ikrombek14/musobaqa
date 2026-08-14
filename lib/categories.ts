@@ -19,6 +19,14 @@ export type CategoryMeta = {
   tagCount: number;
   /** Har bir raqamdan nechta nusxa chop etiladi */
   copies: number;
+  /**
+   * Bitta raqamga nechta ishtirokchi biriktiriladi.
+   *
+   * Robofutbolda ikkita bola bitta raqam ostida oʻynaydi (F1 qogʻozi
+   * ikki nusxada chop etiladi — har robotga bittadan). Uchinchisini
+   * qoʻshib boʻlmaydi.
+   */
+  maxMembers: number;
   colorVar: string;
 };
 
@@ -32,6 +40,7 @@ export const CATEGORIES: Record<CategoryCode, CategoryMeta> = {
     tagCount: 50,
     // Robofutbolda jamoada ikki robot — har raqamdan ikki nusxa
     copies: 2,
+    maxMembers: 2,
     colorVar: "var(--cat-f)",
   },
   S: {
@@ -42,6 +51,7 @@ export const CATEGORIES: Record<CategoryCode, CategoryMeta> = {
     prefix: "S",
     tagCount: 50,
     copies: 1,
+    maxMembers: 1,
     colorVar: "var(--cat-s)",
   },
   LS: {
@@ -52,6 +62,7 @@ export const CATEGORIES: Record<CategoryCode, CategoryMeta> = {
     prefix: "LS",
     tagCount: 50,
     copies: 1,
+    maxMembers: 1,
     colorVar: "var(--cat-ls)",
   },
   LF: {
@@ -62,6 +73,7 @@ export const CATEGORIES: Record<CategoryCode, CategoryMeta> = {
     prefix: "LF",
     tagCount: 30,
     copies: 1,
+    maxMembers: 1,
     colorVar: "var(--cat-lf)",
   },
   RC: {
@@ -72,6 +84,7 @@ export const CATEGORIES: Record<CategoryCode, CategoryMeta> = {
     prefix: "RC",
     tagCount: 50,
     copies: 1,
+    maxMembers: 1,
     colorVar: "var(--cat-rc)",
   },
 };
