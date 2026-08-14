@@ -187,21 +187,18 @@ export function CheckInScreen() {
               bosiladigan tugma, ortiqcha click yoʻq.
             */}
             <div className="min-w-0 flex-1">
-              <label htmlFor="confirm-category" className="sr-only">
-                Yoʻnalish
-              </label>
-              <select
-                id="confirm-category"
-                value={draftCategory}
-                onChange={(e) => setDraftCategory(e.target.value)}
-                className="-ml-1 h-7 rounded border-0 bg-transparent px-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] outline-none hover:bg-[var(--bg-subtle)] focus:bg-[var(--bg-subtle)] focus:ring-2 focus:ring-[var(--focus-ring)]"
-              >
-                {CATEGORY_LIST.map((cat) => (
-                  <option key={cat.code} value={cat.code}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                <span
+                  className="size-2 rounded-full"
+                  style={{
+                    backgroundColor: isCategoryCode(draftCategory)
+                      ? CATEGORIES[draftCategory].colorVar
+                      : undefined,
+                  }}
+                  aria-hidden="true"
+                />
+                {CATEGORIES[draftCategory as keyof typeof CATEGORIES]?.name}
+              </p>
 
               <label htmlFor="confirm-name" className="sr-only">
                 Ism / jamoa nomi
@@ -225,6 +222,44 @@ export function CheckInScreen() {
             <Field label="Murabbiy" value={selected.coach} />
             <Field label="Ishtirokchilar" value={memberList.join(", ") || null} />
           </dl>
+
+          {/*
+            Yoʻnalish — ochiladigan roʻyxat emas, koʻrinib turgan
+            tugmalar. Stolda bitta bosish bilan almashadi va admin
+            qaysi yoʻnalishlar borligini roʻyxatni ochmasdan koʻradi.
+          */}
+          <div className="mt-5">
+            <p className="text-xs font-medium text-[var(--text-muted)]">Yoʻnalish</p>
+            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Yoʻnalish">
+              {CATEGORY_LIST.map((cat) => {
+                const active = cat.code === draftCategory;
+                return (
+                  <button
+                    key={cat.code}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => {
+                      setDraftCategory(cat.code);
+                      setPartner(null);
+                    }}
+                    className={
+                      "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors " +
+                      (active
+                        ? "border-transparent bg-[var(--text)] text-[var(--bg)]"
+                        : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:border-[var(--border-strong)] hover:text-[var(--text)]")
+                    }
+                  >
+                    <span
+                      className="size-2.5 rounded-full"
+                      style={{ backgroundColor: cat.colorVar }}
+                      aria-hidden="true"
+                    />
+                    {cat.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/*
             Robofutbolda bitta raqam ikki bolaga beriladi (F1 qogʻozi
