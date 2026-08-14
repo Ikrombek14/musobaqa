@@ -90,8 +90,13 @@ jobs:
              chmod +x scripts/*.sh; \
              bash scripts/ci-deploy.sh '${{ github.sha }}'"
 
-      - name: Eski obrazlarni tozalash
+      # Har deploy yangi qatlam qoldiradi. Obrazlar tozalanardi, BUILD
+      # KESHI esa yoʻq — u 9 kunda 17 GB ga yetdi. Disk toʻlsa server
+      # butunlay toʻxtaydi, shuning uchun u ham tozalanadi.
+      - name: Eski obraz va build keshini tozalash
         if: success()
         run: |
           ssh -n -o BatchMode=yes "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "docker image prune -f --filter 'until=168h' >/dev/null && echo tozalandi"
+            "docker image prune -f --filter 'until=168h' >/dev/null; \
+             docker builder prune -f --filter 'until=72h' >/dev/null; \
+             echo \"tozalandi · boʻsh joy: \$(df -h / | awk 'NR==2{print \$4}')\""
