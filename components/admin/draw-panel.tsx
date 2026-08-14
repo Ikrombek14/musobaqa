@@ -82,7 +82,11 @@ function DrawCard({ row }: { row: Row }) {
             <h2 className="font-bold">{category.name}</h2>
             <p className="tnum text-sm text-[var(--text-muted)]">
               {row.checkedIn} ta check-in qilingan jamoa
-              {category.format === "group_playoff" && ` · ${row.groupSize} talik guruh`}
+              {category.format === "group_playoff" &&
+                ` · ${row.groupSize} talik guruh · ${Math.max(
+                  1,
+                  Math.ceil(row.checkedIn / row.groupSize),
+                )} guruh chiqadi`}
             </p>
           </div>
         </div>
@@ -130,6 +134,19 @@ function DrawCard({ row }: { row: Row }) {
         {!state && !row.drawLocked && !canDraw && (
           <p className="rounded-[var(--radius-md)] bg-[var(--warning-soft)] p-3 text-sm text-[var(--warning)]">
             Jerebyovka uchun kamida 2 ta jamoa check-in qilingan boʻlishi kerak.
+          </p>
+        )}
+
+        {/*
+          Jerebyovkaga FAQAT check-in qilinganlar kiradi. Kelmagan bola
+          bor boʻlsa u jadvaldan tashqarida qoladi va buni musobaqa
+          oʻrtasida sezish qiyin — shuning uchun ogohlantirish.
+        */}
+        {!state && !row.drawLocked && canDraw && row.checkedIn < row.total && (
+          <p className="rounded-[var(--radius-md)] bg-[var(--warning-soft)] p-3 text-sm text-[var(--warning)]">
+            <strong className="tnum">{row.total - row.checkedIn}</strong> ta jamoa hali
+            roʻyxatdan oʻtmagan. Jerebyovkaga faqat kelganlar kiradi — check-in
+            tugagach oʻtkazish maʼqul.
           </p>
         )}
 

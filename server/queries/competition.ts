@@ -43,9 +43,11 @@ export type BoardRun = {
 export type BoardData = {
   categoryCode: CategoryCode;
   drawLocked: boolean;
+  /** Guruhdan nechta jamoa pleyoffga chiqadi — jadvalda ajratib koʻrsatiladi */
+  advancePerGroup: number;
   teams: BoardTeam[];
   matches: BoardMatch[];
-  groups: { id: number; name: string; teamIds: number[] }[];
+  groups: { id: number; name: string; fieldNo: number | null; teamIds: number[] }[];
   runs: BoardRun[];
   startOrder: number[];
   /** SSE shu id'dan keyingi hodisalarni beradi — bo'shliq qolmaydi */
@@ -64,7 +66,10 @@ export type BoardData = {
 export const getBoardData = cache(async (categoryCode: CategoryCode): Promise<BoardData> => {
   const [settings, teams, matches, groupRows, runs, latestDraw] = await Promise.all([
     db
-      .select({ drawLocked: schema.categories.drawLocked })
+      .select({
+        drawLocked: schema.categories.drawLocked,
+        advancePerGroup: schema.categories.advancePerGroup,
+      })
       .from(schema.categories)
       .where(eq(schema.categories.code, categoryCode))
       .then((r) => r[0]),
@@ -108,6 +113,7 @@ export const getBoardData = cache(async (categoryCode: CategoryCode): Promise<Bo
       .select({
         groupId: schema.groups.id,
         groupName: schema.groups.name,
+        groupField: schema.groups.fieldNo,
         teamId: schema.groupTeams.teamId,
         position: schema.groupTeams.position,
       })
@@ -143,11 +149,15 @@ export const getBoardData = cache(async (categoryCode: CategoryCode): Promise<Bo
       .then((r) => r[0]),
   ]);
 
-  const groupMap = new Map<number, { id: number; name: string; teamIds: number[] }>();
+  const groupMap = new Map<
+    number,
+    { id: number; name: string; fieldNo: number | null; teamIds: number[] }
+  >();
   for (const row of groupRows) {
     const entry = groupMap.get(row.groupId) ?? {
       id: row.groupId,
       name: row.groupName,
+      fieldNo: row.groupField,
       teamIds: [],
     };
     if (row.teamId !== null) entry.teamIds.push(row.teamId);
@@ -160,6 +170,7 @@ export const getBoardData = cache(async (categoryCode: CategoryCode): Promise<Bo
   return {
     categoryCode,
     drawLocked: settings?.drawLocked ?? false,
+    advancePerGroup: settings?.advancePerGroup ?? 1,
     teams,
     matches,
     groups: [...groupMap.values()],
@@ -231,6 +242,7 @@ export const getOverview = cache(async () => {
       drawLocked: schema.categories.drawLocked,
       groupSize: schema.categories.groupSize,
       matchMinutes: schema.categories.matchMinutes,
+      advancePerGroup: schema.categories.advancePerGroup,
       fieldCount: schema.categories.fieldCount,
       total: sql<number>`count(${schema.teams.id})::int`,
       checkedIn: sql<number>`count(${schema.teams.checkedInAt})::int`,
@@ -243,6 +255,7 @@ export const getOverview = cache(async () => {
       schema.categories.drawLocked,
       schema.categories.groupSize,
       schema.categories.matchMinutes,
+      schema.categories.advancePerGroup,
       schema.categories.fieldCount,
     );
 

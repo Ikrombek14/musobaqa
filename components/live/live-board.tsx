@@ -205,9 +205,14 @@ function GroupView({ data, state, teamById }: ViewProps) {
 
         return (
           <Card key={group.id} className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-subtle)] px-4 py-2.5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--border)] bg-[var(--bg-subtle)] px-4 py-2.5">
               <h2 className="text-sm font-bold">{group.name} guruh</h2>
-              <span className="text-xs text-[var(--text-muted)]">
+              {group.fieldNo && (
+                <span className="rounded bg-[var(--surface)] px-1.5 py-0.5 text-xs font-semibold">
+                  {group.fieldNo}-maydon
+                </span>
+              )}
+              <span className="ml-auto text-xs text-[var(--text-muted)]">
                 {matches.filter((m) => m.status === "done").length}/{matches.length} oʻyin
               </span>
             </div>
@@ -233,7 +238,7 @@ function GroupView({ data, state, teamById }: ViewProps) {
               <tbody>
                 {table.map((row, index) => {
                   const team = teamById.get(row.teamId);
-                  const qualifies = index < 2;
+                  const qualifies = index < data.advancePerGroup;
                   return (
                     <tr
                       key={row.teamId}
@@ -295,24 +300,32 @@ function MatchRow({
   const b = match.teamBId ? teamById.get(match.teamBId) : null;
   const done = match.status === "done";
 
+  /*
+    Ishtirokchi oʻzini raqam boʻyicha emas, ISM boʻyicha qidiradi.
+    Ilgari bu yerda faqat «F12 – F7» turardi va bola oʻz oʻyinini
+    topolmasdi.
+  */
   return (
     <div
       className={
         "grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-xs " +
-        (flashed ? "flash-once " : "")
+        (flashed ? "flash-once " : "") +
+        (match.status === "live" ? "bg-[var(--warning-soft)]" : "")
       }
     >
       <span
         className={
-          "truncate text-right " +
+          "min-w-0 truncate text-right " +
           (done && match.winnerId === match.teamAId ? "font-bold" : "text-[var(--text-muted)]")
         }
+        title={a?.name ?? undefined}
       >
-        {a?.number ?? "—"}
+        <span className="tnum font-semibold">{a?.number ?? "—"}</span>
+        {a?.name && <span className="ml-1">{a.name}</span>}
       </span>
       <span
         className={
-          "tnum rounded px-2 py-0.5 font-bold " +
+          "tnum shrink-0 rounded px-2 py-0.5 font-bold " +
           (done ? "bg-[var(--bg-subtle)]" : "text-[var(--text-subtle)]")
         }
       >
@@ -320,11 +333,13 @@ function MatchRow({
       </span>
       <span
         className={
-          "truncate " +
+          "min-w-0 truncate " +
           (done && match.winnerId === match.teamBId ? "font-bold" : "text-[var(--text-muted)]")
         }
+        title={b?.name ?? undefined}
       >
-        {b?.number ?? "—"}
+        <span className="tnum font-semibold">{b?.number ?? "—"}</span>
+        {b?.name && <span className="ml-1">{b.name}</span>}
       </span>
     </div>
   );

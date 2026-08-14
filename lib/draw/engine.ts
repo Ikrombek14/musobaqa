@@ -217,7 +217,16 @@ export type BracketResult = {
  * qo'yiladi. Baylar to'r bo'ylab TARQATILADI (hammasi bir tomonda emas) —
  * aks holda to'rning yarmi bir tur oldinda ketib qoladi.
  */
-export function buildBracket(teamIds: readonly number[], seed: string): BracketResult {
+export function buildBracket(
+  teamIds: readonly number[],
+  seed: string,
+  /**
+   * Jamoa qaysi guruhdan chiqqani. Berilsa, bitta guruhdan chiqqan ikki
+   * jamoa 1-turda uchrashmaydi: ular guruhda allaqachon oʻynagan va
+   * pleyoffning birinchi oʻyini takror boʻlib qolardi.
+   */
+  groupOf?: ReadonlyMap<number, number>,
+): BracketResult {
   const rng = createRng(seed);
   const order = shuffle(teamIds, rng);
   const n = order.length;
@@ -269,6 +278,8 @@ export function buildBracket(teamIds: readonly number[], seed: string): BracketR
     if (slots[i] === null && !byePositions.has(i)) slots[i] = order[teamIndex++];
   }
 
+  if (groupOf) separateSameGroup(slots, groupOf);
+
   const matches: BracketMatch[] = [];
 
   // 1-tur
@@ -312,6 +323,50 @@ export function buildBracket(teamIds: readonly number[], seed: string): BracketR
 /** Juftining ikkinchi pozitsiyasi (0↔1, 2↔3, ...) */
 function partnerOf(position: number): number {
   return position % 2 === 0 ? position + 1 : position - 1;
+}
+
+/**
+ * Bitta guruhdan chiqqan jamoalarni 1-turda ajratadi.
+ *
+ * Guruh bosqichida ular allaqachon oʻynagan; pleyoffning birinchi oʻyini
+ * oʻsha uchrashuvning takrori boʻlsa jerebyovka «adolatsiz» koʻrinadi.
+ * Toʻqnashgan juftni boshqa juft bilan almashtirib chiqamiz — almashtirish
+ * yangi toʻqnashuv yaratmasligi tekshiriladi. Yechim topilmasa (masalan
+ * hamma bitta guruhdan) shundayligicha qoladi: jerebyovka toʻxtamaydi.
+ */
+function separateSameGroup(
+  slots: (number | null)[],
+  groupOf: ReadonlyMap<number, number>,
+): void {
+  const group = (position: number): number | undefined => {
+    const team = slots[position];
+    return team === null ? undefined : groupOf.get(team);
+  };
+  const clash = (x: number, y: number): boolean => {
+    const a = group(x);
+    const b = group(y);
+    return a !== undefined && a === b;
+  };
+
+  for (let slot = 0; slot * 2 + 1 < slots.length; slot++) {
+    const left = slot * 2;
+    const right = left + 1;
+    if (!clash(left, right)) continue;
+
+    for (let other = 0; other * 2 + 1 < slots.length; other++) {
+      if (other === slot) continue;
+      const otherLeft = other * 2;
+      const otherRight = otherLeft + 1;
+
+      // `right` ni `otherRight` bilan almashtirsak ikkala juft ham tozami?
+      if (!clash(left, otherRight) && !clash(otherLeft, right)) {
+        const temp = slots[right];
+        slots[right] = slots[otherRight];
+        slots[otherRight] = temp;
+        break;
+      }
+    }
+  }
 }
 
 /**

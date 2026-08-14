@@ -7,7 +7,7 @@ import { db, schema } from "@/lib/db";
 import { emit } from "@/lib/realtime/emit";
 import { requireAdmin } from "@/lib/auth/session";
 import { CATEGORIES, isCategoryCode } from "@/lib/categories";
-import { assignFields } from "@/server/lib/progression";
+import { assignFields, createPlayoffBracket } from "@/server/lib/progression";
 import { toId, toInt } from "@/lib/validate";
 
 export type SettingsState = { ok: true; message: string } | { ok: false; error: string };
@@ -17,6 +17,13 @@ const settingsSchema = z.object({
   fieldCount: z.coerce.number().int().min(1, "Kamida 1 maydon").max(20, "Koʻpi bilan 20 maydon"),
   groupSize: z.coerce.number().int().min(2, "Guruh kamida 2 talik").max(12, "Koʻpi bilan 12 talik"),
   matchMinutes: z.coerce.number().int().min(1, "Kamida 1 daqiqa").max(60, "Koʻpi bilan 60 daqiqa"),
+  advancePerGroup: z.coerce
+    .number()
+    .int()
+    .min(1, "Kamida 1 ta chiqadi")
+    .max(4, "Koʻpi bilan 4 ta")
+    .optional()
+    .default(1),
 });
 
 /**
@@ -66,8 +73,78 @@ export async function updateCategorySettings(
           fieldCount: input.fieldCount,
           groupSize: input.groupSize,
           matchMinutes: input.matchMinutes,
+          advancePerGroup: input.advancePerGroup,
         })
         .where(eq(schema.categories.code, categoryCode));
+
+      /**
+       * Guruhdan chiqish soni oʻzgarsa va pleyoff ALLAQACHON tuzilgan
+       * boʻlsa — toʻr qaytadan tuziladi.
+       *
+       * Faqat hech bir pleyoff oʻyini boshlanmagan boʻlsa: aks holda
+       * oʻynab boʻlingan chorak final natijasi yoʻqolardi.
+       */
+      let rebuilt = 0;
+      if (current.advancePerGroup !== input.advancePerGroup) {
+        const playoff = await tx
+          .select({ id: schema.matches.id, status: schema.matches.status })
+          .from(schema.matches)
+          .where(
+            and(
+              eq(schema.matches.categoryCode, categoryCode),
+              eq(schema.matches.stage, "playoff"),
+            ),
+          );
+
+        if (playoff.length > 0) {
+          const started = playoff.some((m) => m.status !== "pending");
+          if (started) {
+            throw new Error(
+              "Pleyoff boshlangan — guruhdan chiqish sonini oʻzgartirib boʻlmaydi.",
+            );
+          }
+
+          const groupMatches = await tx
+            .select({
+              groupId: schema.matches.groupId,
+              teamAId: schema.matches.teamAId,
+              teamBId: schema.matches.teamBId,
+              scoreA: schema.matches.scoreA,
+              scoreB: schema.matches.scoreB,
+              status: schema.matches.status,
+            })
+            .from(schema.matches)
+            .where(
+              and(
+                eq(schema.matches.categoryCode, categoryCode),
+                eq(schema.matches.stage, "group"),
+              ),
+            );
+
+          await tx
+            .delete(schema.matches)
+            .where(
+              and(
+                eq(schema.matches.categoryCode, categoryCode),
+                eq(schema.matches.stage, "playoff"),
+              ),
+            );
+
+          const result = await createPlayoffBracket(
+            tx,
+            categoryCode,
+            groupMatches,
+            input.fieldCount,
+            admin.name,
+          );
+          rebuilt = result.qualified.length;
+
+          await emit(tx, categoryCode, "match.updated", {
+            structure: true,
+            reason: "playoff.rebuilt",
+          });
+        }
+      }
 
       let redistributed = 0;
       if (fieldsChanged) {
@@ -125,6 +202,9 @@ export async function updateCategorySettings(
         });
       }
 
+      if (rebuilt > 0) {
+        return `Saqlandi · pleyoff qayta tuzildi, ${rebuilt} ta jamoa chiqdi`;
+      }
       return fieldsChanged
         ? `Saqlandi · ${redistributed} ta oʻyin ${input.fieldCount} ta maydonga qayta taqsimlandi`
         : "Saqlandi";

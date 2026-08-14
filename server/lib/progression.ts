@@ -320,13 +320,25 @@ export async function createPlayoffBracket(
     byGroup.set(row.groupId, list);
   }
 
+  const [settings] = await tx
+    .select({ advancePerGroup: schema.categories.advancePerGroup })
+    .from(schema.categories)
+    .where(eq(schema.categories.code, categoryCode));
+  const advancePerGroup = Math.max(1, settings?.advancePerGroup ?? 1);
+
   const qualified: number[] = [];
+  /** Kim qaysi guruhdan chiqdi — toʻrda ularni 1-turda ajratish uchun */
+  const groupOf = new Map<number, number>();
+
   for (const [groupId, rows] of byGroup) {
     const table = computeGroupTable(
       rows.map((r) => ({ id: r.teamId, name: r.teamName, number: r.number })),
       groupMatches.filter((m) => m.groupId === groupId),
     );
-    qualified.push(...table.slice(0, 2).map((r) => r.teamId));
+    for (const row of table.slice(0, advancePerGroup)) {
+      qualified.push(row.teamId);
+      groupOf.set(row.teamId, groupId);
+    }
   }
 
   if (qualified.length < 2) {
@@ -334,14 +346,14 @@ export async function createPlayoffBracket(
   }
 
   const seed = createSeed();
-  const bracket = buildBracket(qualified, seed);
+  const bracket = buildBracket(qualified, seed, groupOf);
   await insertBracket(tx, categoryCode, "playoff", bracket, fieldCount);
 
   await tx.insert(schema.draws).values({
     categoryCode,
     seed,
     teamIds: qualified,
-    resultJson: { format: "playoff", qualified, size: bracket.size },
+    resultJson: { format: "playoff", qualified, size: bracket.size, advancePerGroup },
     warnings: [],
     createdBy: actor,
   });

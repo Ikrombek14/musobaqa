@@ -27,6 +27,7 @@ export default async function SettingsPage() {
         fieldCount: row.fieldCount,
         groupSize: row.groupSize,
         matchMinutes: row.matchMinutes,
+        advancePerGroup: row.advancePerGroup,
         drawLocked: row.drawLocked,
         checkedIn: row.checkedIn,
         matchesTotal: row.matchesTotal,

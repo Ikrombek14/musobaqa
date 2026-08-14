@@ -22,6 +22,8 @@ export const categories = pgTable("categories", {
   groupSize: integer("group_size").notNull().default(4),
   matchMinutes: integer("match_minutes").notNull().default(5),
   fieldCount: integer("field_count").notNull().default(3),
+  /** Guruhdan nechta jamoa pleyoffga chiqadi (1 = faqat gʻolib) */
+  advancePerGroup: integer("advance_per_group").notNull().default(1),
   /** Raqam berish hisoblagichi. Check-in shu qatorni FOR UPDATE bilan qulflaydi. */
   lastNumber: integer("last_number").notNull().default(0),
   drawLocked: boolean("draw_locked").notNull().default(false),

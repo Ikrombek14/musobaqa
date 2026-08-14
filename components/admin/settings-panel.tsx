@@ -17,6 +17,7 @@ export type CategorySettings = {
   fieldCount: number;
   groupSize: number;
   matchMinutes: number;
+  advancePerGroup: number;
   drawLocked: boolean;
   checkedIn: number;
   matchesTotal: number;
@@ -46,6 +47,7 @@ function CategorySettingsCard({ settings }: { settings: CategorySettings }) {
   const [fieldCount, setFieldCount] = useState(settings.fieldCount);
   const [groupSize, setGroupSize] = useState(settings.groupSize);
   const [matchMinutes, setMatchMinutes] = useState(settings.matchMinutes);
+  const [advancePerGroup, setAdvancePerGroup] = useState(settings.advancePerGroup);
 
   const estimate = useMemo(
     () =>
@@ -109,6 +111,48 @@ function CategorySettingsCard({ settings }: { settings: CategorySettings }) {
           )}
           {category.format !== "group_playoff" && (
             <input type="hidden" name="groupSize" value={groupSize} />
+          )}
+
+          {/*
+            Guruhdan nechta chiqadi. Standart — 1. Guruhlar kam boʻlsa
+            toʻr juda kichik chiqadi, shunda tashkilotchi 2 ga oshiradi.
+            Pleyoff hali boshlanmagan boʻlsa toʻr qaytadan tuziladi.
+          */}
+          {category.format === "group_playoff" && (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">Guruhdan nechta chiqadi</span>
+              <div className="flex gap-2" role="group" aria-label="Guruhdan nechta chiqadi">
+                {[1, 2, 3].map((n) => (
+                  <label
+                    key={n}
+                    className={
+                      "flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-sm font-medium transition-colors " +
+                      (advancePerGroup === n
+                        ? "border-transparent bg-[var(--text)] text-[var(--bg)]"
+                        : "border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]")
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="advancePerGroup"
+                      value={n}
+                      checked={advancePerGroup === n}
+                      onChange={() => setAdvancePerGroup(n)}
+                      className="sr-only"
+                    />
+                    {n === 1 ? "Faqat gʻolib" : `${n} ta`}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-[var(--text-muted)]">
+                {settings.groups.length > 0
+                  ? `${settings.groups.length} guruh × ${advancePerGroup} = ${
+                      settings.groups.length * advancePerGroup
+                    } jamoa pleyoffga chiqadi`
+                  : "Jerebyovkadan keyin nechta jamoa chiqishi shu yerda koʻrinadi"}
+                . Pleyoff boshlanmagunicha oʻzgartirsa boʻladi.
+              </p>
+            </div>
           )}
 
           <Slider
@@ -313,7 +357,7 @@ function Slider({
       </div>
       <input
         id={id}
-        name={name}
+        name={disabled ? undefined : name}
         type="range"
         min={min}
         max={max}
@@ -322,6 +366,14 @@ function Slider({
         onChange={(e) => onChange(Number(e.target.value))}
         className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[var(--bg-subtle)] accent-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-50"
       />
+      {/*
+        Bloklangan input FormData ga TUSHMAYDI — brauzer qoidasi.
+        Jerebyovkadan keyin guruh oʻlchami bloklanadi va shu sababli
+        «expected number, received NaN» chiqardi: forma qiymatsiz
+        yuborilardi va oʻyin davomiyligini ham saqlab boʻlmasdi.
+        Yashirin nusxa joriy qiymatni oʻzgarmagan holda yuboradi.
+      */}
+      {disabled && <input type="hidden" name={name} value={value} />}
       <p className="text-xs text-[var(--text-muted)]">{hint}</p>
     </div>
   );
