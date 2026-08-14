@@ -136,6 +136,26 @@ function MatchPanel({ work, categoryCode, fieldNo }: Props) {
   const pending = matches.filter((m) => m.status !== "done");
   const done = matches.filter((m) => m.status === "done");
 
+  /** Shu maydonga biriktirilgan guruhlar — sarlavhada koʻrsatiladi */
+  const myGroups = [...new Set(matches.map((m) => m.groupName).filter(Boolean))].sort() as string[];
+
+  /**
+   * Navbatdagilar guruh (yoki bosqich) boʻyicha ajratiladi.
+   *
+   * Bir maydonda bir necha guruh boʻlishi mumkin. Ajratmasak hakam
+   * «bu qaysi guruhning oʻyini edi» deb har safar kartochkani oʻqiydi.
+   */
+  const pendingByLabel = (() => {
+    const buckets = new Map<string, JudgeMatch[]>();
+    for (const match of pending) {
+      const label = match.groupName
+        ? `${match.groupName} guruh`
+        : roundName(match.round, work.totalRounds);
+      buckets.set(label, [...(buckets.get(label) ?? []), match]);
+    }
+    return [...buckets.entries()];
+  })();
+
   if (matches.length === 0) {
     return (
       <Card>
@@ -154,6 +174,23 @@ function MatchPanel({ work, categoryCode, fieldNo }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
+      {/*
+        Hakam qaysi guruhlarni boshqarayotgani darhol koʻrinsin.
+        Jerebyovkada har guruh bitta maydonga biriktiriladi, shuning
+        uchun bu roʻyxat qisqa va oʻzgarmaydi.
+      */}
+      {myGroups.length > 0 && (
+        <p className="rounded-[var(--radius-md)] bg-[var(--bg-subtle)] px-3 py-2 text-sm">
+          <span className="font-semibold">
+            {fieldNo ? `${fieldNo}-maydon` : "Barcha maydonlar"}
+          </span>
+          <span className="text-[var(--text-muted)]">
+            {" · "}
+            {myGroups.join(", ")} guruh
+          </span>
+        </p>
+      )}
+
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
           Navbatdagi oʻyinlar · {pending.length}
@@ -166,18 +203,27 @@ function MatchPanel({ work, categoryCode, fieldNo }: Props) {
             />
           </Card>
         ) : (
-          pending.map((match) => (
-            <MatchCard
-              key={match.id}
-              match={match}
-              categoryCode={categoryCode}
-              totalRounds={work.totalRounds}
-              open={openId === match.id}
-              onOpen={() => setOpenId(openId === match.id ? null : match.id)}
-              onPatch={patch}
-              justSaved={savedIds[match.id] ?? null}
-              onSaved={markSaved}
-            />
+          pendingByLabel.map(([label, list]) => (
+            <div key={label} className="flex flex-col gap-3">
+              {pendingByLabel.length > 1 && (
+                <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-subtle)]">
+                  {label}
+                </p>
+              )}
+              {list.map((match) => (
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                  categoryCode={categoryCode}
+                  totalRounds={work.totalRounds}
+                  open={openId === match.id}
+                  onOpen={() => setOpenId(openId === match.id ? null : match.id)}
+                  onPatch={patch}
+                  justSaved={savedIds[match.id] ?? null}
+                  onSaved={markSaved}
+                />
+              ))}
+            </div>
           ))
         )}
       </section>

@@ -153,32 +153,49 @@ async function drawGroupStage(
 ) {
   const { groups, warnings } = drawGroups(teams, groupSize, seed);
 
-  const created: { id: number; name: string; teamIds: number[] }[] = [];
-  for (const group of groups) {
-    const [row] = await tx
-      .insert(schema.groups)
-      .values({ categoryCode, name: group.name })
-      .returning({ id: schema.groups.id });
-
-    for (const [position, teamId] of group.teamIds.entries()) {
-      await tx.insert(schema.groupTeams).values({ groupId: row.id, teamId, position });
-    }
-    created.push({ id: row.id, name: group.name, teamIds: group.teamIds });
-  }
-
-  // Guruh o'yinlari. Turlar bo'yicha aralashtiramiz: bir jamoa ketma-ket
-  // ikki o'yin o'ynamasin, maydonlar esa parallel band bo'lsin.
   const [settings] = await tx
     .select({ fieldCount: schema.categories.fieldCount })
     .from(schema.categories)
     .where(eq(schema.categories.code, categoryCode));
   const fieldCount = Math.max(1, settings?.fieldCount ?? 1);
 
-  type Pending = { groupId: number; a: number; b: number; round: number };
+  /**
+   * Har guruh BITTA maydonga biriktiriladi, navbat bilan:
+   * A→1, B→2, C→3, D→1 …
+   *
+   * Ilgari oʻyinlar maydonlarga bittalab taqsimlanardi va bitta
+   * guruhning oʻyinlari uch maydonga sochilib ketardi. Hakam har xil
+   * guruhdan tushgan oʻyinlarni koʻrardi, guruh jadvali esa uch joyda
+   * bir vaqtda yangilanardi — kim kim bilan oʻynayotganini kuzatib
+   * boʻlmasdi. Endi «A guruh — 1-maydon» deb aytish kifoya.
+   */
+  const created: { id: number; name: string; teamIds: number[]; fieldNo: number }[] = [];
+  for (const [index, group] of groups.entries()) {
+    const fieldNo = (index % fieldCount) + 1;
+    const [row] = await tx
+      .insert(schema.groups)
+      .values({ categoryCode, name: group.name, fieldNo })
+      .returning({ id: schema.groups.id });
+
+    for (const [position, teamId] of group.teamIds.entries()) {
+      await tx.insert(schema.groupTeams).values({ groupId: row.id, teamId, position });
+    }
+    created.push({ id: row.id, name: group.name, teamIds: group.teamIds, fieldNo });
+  }
+
+  // Guruh o'yinlari. Turlar bo'yicha aralashtiramiz: bir jamoa ketma-ket
+  // ikki o'yin o'ynamasin, maydonlar esa parallel band bo'lsin.
+  type Pending = { groupId: number; fieldNo: number; a: number; b: number; round: number };
   const pending: Pending[] = [];
   for (const group of created) {
     for (const pair of roundRobin(group.teamIds)) {
-      pending.push({ groupId: group.id, a: pair.a, b: pair.b, round: pair.round });
+      pending.push({
+        groupId: group.id,
+        fieldNo: group.fieldNo,
+        a: pair.a,
+        b: pair.b,
+        round: pair.round,
+      });
     }
   }
   pending.sort((x, y) => x.round - y.round || x.groupId - y.groupId);
@@ -192,7 +209,7 @@ async function drawGroupStage(
       round: match.round,
       slot: orderNo,
       orderNo,
-      fieldNo: (orderNo % fieldCount) + 1,
+      fieldNo: match.fieldNo,
       teamAId: match.a,
       teamBId: match.b,
       status: "pending",
@@ -200,15 +217,24 @@ async function drawGroupStage(
     orderNo++;
   }
 
+  const byField = new Map<number, string[]>();
+  for (const group of created) {
+    byField.set(group.fieldNo, [...(byField.get(group.fieldNo) ?? []), group.name]);
+  }
+  const spread = [...byField.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([field, names]) => `${field}-maydon: ${names.join(", ")}`)
+    .join(" · ");
+
   return {
     warnings,
     resultJson: {
       format: "group_playoff",
-      groups: created.map((g) => ({ name: g.name, teamIds: g.teamIds })),
+      groups: created.map((g) => ({ name: g.name, teamIds: g.teamIds, fieldNo: g.fieldNo })),
       matchCount: pending.length,
     },
     summary:
-      `${created.length} guruh · ${pending.length} guruh oʻyini. ` +
+      `${created.length} guruh · ${pending.length} guruh oʻyini. ${spread}. ` +
       `Pleyoff guruh bosqichi tugagach tuziladi.`,
   };
 }
