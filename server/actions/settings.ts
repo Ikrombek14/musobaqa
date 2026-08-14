@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/lib/db";
 import { emit } from "@/lib/realtime/emit";
@@ -148,18 +148,24 @@ export async function updateCategorySettings(
 
       let redistributed = 0;
       if (fieldsChanged) {
-        // 1) Maydon soni kamaygan boʻlsa, chegaradan chiqqan guruh
-        //    biriktiruvlari boʻshatiladi — «7-maydon»ga ishora qolib
-        //    ketmasin.
-        await tx
-          .update(schema.groups)
-          .set({ fieldNo: null })
-          .where(
-            and(
-              eq(schema.groups.categoryCode, categoryCode),
-              gt(schema.groups.fieldNo, input.fieldCount),
-            ),
-          );
+        /*
+          1) Guruhlar maydonlarga QAYTA taqsimlanadi: A→1, B→2, C→1 …
+             Ilgari chegaradan chiqqan guruh «Avtomatik» boʻlib qolardi
+             va uning oʻyinlari yuk boʻyicha sochilib ketardi — bitta
+             guruh bitta maydonda degan qoida buzilardi.
+        */
+        const allGroups = await tx
+          .select({ id: schema.groups.id })
+          .from(schema.groups)
+          .where(eq(schema.groups.categoryCode, categoryCode))
+          .orderBy(asc(schema.groups.name));
+
+        for (const [index, group] of allGroups.entries()) {
+          await tx
+            .update(schema.groups)
+            .set({ fieldNo: (index % input.fieldCount) + 1 })
+            .where(eq(schema.groups.id, group.id));
+        }
 
         // 2) Boshlanmagan oʻyinlarning maydonini boʻshatamiz.
         //    Ketayotgan (`live`) va yakunlangan oʻyinlar tegilmaydi.

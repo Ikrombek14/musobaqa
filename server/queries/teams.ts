@@ -119,6 +119,8 @@ export type GroupComposition = {
 export type PairingsData = {
   categoryCode: CategoryCode;
   drawLocked: boolean;
+  /** Guruhdan nechta jamoa chiqadi — jadvalda ajratib koʻrsatiladi */
+  advancePerGroup: number;
   groups: GroupComposition[];
   pairs: PairRow[];
   totalRounds: number;
@@ -132,7 +134,10 @@ export async function getPairings(categoryCode: CategoryCode): Promise<PairingsD
 
   const [settings, matchRows, groupRows, order] = await Promise.all([
     db
-      .select({ drawLocked: schema.categories.drawLocked })
+      .select({
+        drawLocked: schema.categories.drawLocked,
+        advancePerGroup: schema.categories.advancePerGroup,
+      })
       .from(schema.categories)
       .where(eq(schema.categories.code, categoryCode))
       .then((r) => r[0]),
@@ -253,6 +258,7 @@ export async function getPairings(categoryCode: CategoryCode): Promise<PairingsD
   return {
     categoryCode,
     drawLocked: settings?.drawLocked ?? false,
+    advancePerGroup: settings?.advancePerGroup ?? 1,
     groups: [...groupMap.values()],
     pairs,
     totalRounds,

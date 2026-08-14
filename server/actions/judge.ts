@@ -148,13 +148,30 @@ export async function saveFootballResult(
     return { ok: false, error: "Hisob 0–99 oraligʻida butun son boʻlsin" };
   }
 
+  /**
+   * Robofutbolda durrang yoʻq.
+   *
+   * Pleyoffda teng hisob mantiqan imkonsiz: gʻolib boʻlmasa keyingi
+   * bosqichda boʻsh oʻrin qoladi va toʻr uzilib qoladi. Guruhda ham
+   * tashkilotchi qarori boʻyicha durrang qabul qilinmaydi — hakam
+   * gʻolib aniqlanmaguncha (qoʻshimcha vaqt, penalti) yozmaydi.
+   */
+  if (scoreA === scoreB) {
+    return {
+      ok: false,
+      error:
+        scoreA === 0
+          ? "0:0 saqlanmaydi — gʻolib aniqlanishi shart"
+          : `${scoreA}:${scoreB} — durrang saqlanmaydi, gʻolib aniqlanishi shart`,
+    };
+  }
+
   try {
     await db.transaction(async (tx) => {
       const match = await loadOwnedMatch(tx, matchId, judge);
       await ensureEditable(tx, match);
 
-      const winnerId =
-        scoreA > scoreB ? match.teamAId : scoreB > scoreA ? match.teamBId : null;
+      const winnerId = scoreA > scoreB ? match.teamAId : match.teamBId;
 
       await tx
         .update(schema.matches)

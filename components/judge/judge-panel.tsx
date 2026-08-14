@@ -589,7 +589,21 @@ function FootballControls({
         <Counter label={match.teamB?.number ?? "B"} value={b} onChange={setB} />
       </div>
 
-      <Button variant="primary" size="xl" block loading={pending} onClick={() => onSave(a, b)}>
+      {/* Durrang yoʻq — tugma bosilmaydi, sababi darhol koʻrinadi */}
+      {a === b && (
+        <p className="rounded-[var(--radius-md)] bg-[var(--warning-soft)] px-3 py-2 text-center text-sm font-medium text-[var(--warning)]">
+          Hisob teng — gʻolib aniqlanishi shart
+        </p>
+      )}
+
+      <Button
+        variant="primary"
+        size="xl"
+        block
+        loading={pending}
+        disabled={a === b}
+        onClick={() => onSave(a, b)}
+      >
         <Flag className="size-5" aria-hidden="true" />
         {editing ? "Yangi hisobni saqlash" : "Yakunlash"} · {a}:{b}
       </Button>

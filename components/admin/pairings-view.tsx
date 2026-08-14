@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Shuffle, Swords } from "lucide-react";
 import { useLive } from "@/lib/realtime/use-live";
 import { CATEGORIES, CATEGORY_LIST, type CategoryCode } from "@/lib/categories";
+import { computeGroupTable } from "@/lib/standings";
+import { formatDiff } from "@/lib/format";
 import { Badge, Card, EmptyState, LiveDot, TeamNumber } from "@/components/ui/primitives";
 import type { PairingsData, PairRow } from "@/server/queries/teams";
 
@@ -97,11 +99,10 @@ export function PairingsView({ data }: { data: PairingsData }) {
                 />
               )}
               {playoffPairs.length > 0 && (
-                <PairSection
-                  title="Pleyoff"
+                <BracketBoard
                   pairs={playoffPairs}
                   categoryCode={data.categoryCode}
-                  groupBy="roundLabel"
+                  totalRounds={data.totalRounds}
                 />
               )}
               {groupPairs.length === 0 && playoffPairs.length === 0 && (
@@ -121,26 +122,63 @@ export function PairingsView({ data }: { data: PairingsData }) {
   );
 }
 
-/* ---------------- Guruh tarkiblari ---------------- */
+/* ---------------- Guruh jadvallari (jonli ochko) ---------------- */
+
+/**
+ * Guruh tarkibi + turnir jadvali bitta kartochkada.
+ *
+ * Ochko, gol farqi va kim chiqayotgani real vaqtda hisoblanadi:
+ * hakam natijani saqlashi bilan SSE hodisasi keladi, sahifa yangilanadi
+ * va jadval qayta chiziladi. Hisob mijozda `computeGroupTable` bilan
+ * bajariladi — hakam panelidagi va tablodagi bilan AYNI funksiya.
+ */
 function GroupCompositions({ data }: { data: PairingsData }) {
+  const matchesByGroup = new Map<string, PairRow[]>();
+  for (const pair of data.pairs) {
+    if (pair.stage !== "group" || !pair.groupName) continue;
+    matchesByGroup.set(pair.groupName, [...(matchesByGroup.get(pair.groupName) ?? []), pair]);
+  }
+
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-        Guruh tarkiblari
-      </h2>
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          Guruh jadvallari
+        </h2>
+        <p className="text-xs text-[var(--text-muted)]">
+          Yashil qator — pleyoffga chiqmoqda ({data.advancePerGroup} tadan)
+        </p>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {data.groups.map((group) => {
           const schools = group.teams.map((t) => (t.school ?? "").trim().toLowerCase());
           const clash = new Set(schools.filter(Boolean)).size !== schools.filter(Boolean).length;
+
+          const groupMatches = matchesByGroup.get(group.name) ?? [];
+          const table = computeGroupTable(
+            group.teams.map((t) => ({ id: t.id, name: t.name, number: t.number })),
+            groupMatches.map((m) => ({
+              teamAId: m.a?.id ?? null,
+              teamBId: m.b?.id ?? null,
+              scoreA: m.scoreA,
+              scoreB: m.scoreB,
+              status: m.status,
+            })),
+          );
+          const teamById = new Map(group.teams.map((t) => [t.id, t]));
+          const played = groupMatches.filter((m) => m.status === "done").length;
+          const complete = groupMatches.length > 0 && played === groupMatches.length;
 
           return (
             <Card key={group.id} className="overflow-hidden">
               <div className="flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-subtle)] px-4 py-2">
                 <span className="text-sm font-bold">{group.name} guruh</span>
                 <span className="tnum text-xs text-[var(--text-muted)]">
-                  {group.teams.length} jamoa
+                  {played}/{groupMatches.length} oʻyin
                 </span>
                 <span className="ml-auto flex items-center gap-1.5">
+                  {complete && <Badge tone="success">Tugadi</Badge>}
                   {group.fieldNo ? (
                     <Badge tone="brand">{group.fieldNo}-maydon</Badge>
                   ) : (
@@ -155,30 +193,166 @@ function GroupCompositions({ data }: { data: PairingsData }) {
                 </p>
               )}
 
-              <ul>
-                {group.teams.map((team) => (
-                  <li
-                    key={team.id}
-                    className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-2 last:border-0"
-                  >
-                    <TeamNumber
-                      value={team.number}
-                      category={data.categoryCode}
-                      size="sm"
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{team.name}</span>
-                      <span className="block truncate text-xs text-[var(--text-muted)]">
-                        {team.school ?? "—"}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <table className="w-full text-sm">
+                <caption className="sr-only">{group.name} guruh turnir jadvali</caption>
+                <thead>
+                  <tr className="text-[11px] font-semibold text-[var(--text-muted)]">
+                    <th scope="col" className="py-1.5 pl-4 text-left">
+                      Jamoa
+                    </th>
+                    <th scope="col" className="w-7 text-right" title="Oʻynadi">
+                      O
+                    </th>
+                    <th scope="col" className="w-7 text-right" title="Gʻalaba">
+                      G
+                    </th>
+                    <th scope="col" className="w-9 text-right" title="Gol farqi">
+                      ±
+                    </th>
+                    <th scope="col" className="w-9 pr-4 text-right" title="Ochko">
+                      Ochko
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.map((row, index) => {
+                    const team = teamById.get(row.teamId);
+                    const qualifies = index < data.advancePerGroup;
+                    return (
+                      <tr
+                        key={row.teamId}
+                        className={
+                          "border-t border-[var(--border)] " +
+                          (qualifies ? "bg-[var(--success-soft)]" : "")
+                        }
+                      >
+                        <td className="py-1.5 pl-4">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="tnum w-4 shrink-0 text-xs text-[var(--text-subtle)]">
+                              {index + 1}
+                            </span>
+                            <TeamNumber
+                              value={team?.number ?? null}
+                              category={data.categoryCode}
+                              size="sm"
+                            />
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium">
+                                {team?.name}
+                              </span>
+                              <span className="block truncate text-[11px] text-[var(--text-muted)]">
+                                {team?.school ?? "—"}
+                              </span>
+                            </span>
+                          </div>
+                        </td>
+                        <td className="tnum text-right text-[var(--text-muted)]">{row.played}</td>
+                        <td className="tnum text-right text-[var(--text-muted)]">{row.won}</td>
+                        <td className="tnum text-right text-[var(--text-muted)]">
+                          {formatDiff(row.diff)}
+                        </td>
+                        <td className="tnum pr-4 text-right font-bold">{row.points}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </Card>
           );
         })}
       </div>
+    </section>
+  );
+}
+
+/* ---------------- Vizual toʻr ---------------- */
+
+/**
+ * Pleyoff toʻri — bosqichlar ustun boʻlib, chapdan oʻngga.
+ *
+ * Toʻrni tizim jerebyovkada oʻzi tuzadi; bu yerda faqat chiziladi.
+ * Har oʻyin ikki qator: gʻolib qalin, yutqazgan xira. Keyingi bosqichda
+ * kim kim bilan uchrashishi shu yerdan darhol koʻrinadi.
+ */
+function BracketBoard({
+  pairs,
+  categoryCode,
+  totalRounds,
+}: {
+  pairs: PairRow[];
+  categoryCode: CategoryCode;
+  totalRounds: number;
+}) {
+  const rounds = new Map<string, PairRow[]>();
+  for (const pair of pairs) {
+    rounds.set(pair.roundLabel, [...(rounds.get(pair.roundLabel) ?? []), pair]);
+  }
+
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+        Toʻr · {pairs.length} oʻyin
+      </h2>
+
+      {/* Bosqichlar koʻp boʻlsa gorizontal siljiydi — sahifa emas */}
+      <div className="overflow-x-auto pb-2">
+        <div className="flex min-w-max gap-4">
+          {[...rounds.entries()].map(([label, list]) => (
+            <div key={label} className="flex w-60 shrink-0 flex-col gap-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-subtle)]">
+                {label} · {list.filter((m) => m.status === "done").length}/{list.length}
+              </p>
+              {list.map((pair) => (
+                <Card key={pair.matchId} className="overflow-hidden">
+                  {pair.status === "bye" && (
+                    <p className="bg-[var(--bg-subtle)] px-3 py-1 text-[11px] font-semibold text-[var(--text-muted)]">
+                      Raqibsiz oʻtdi
+                    </p>
+                  )}
+                  {(["a", "b"] as const).map((side) => {
+                    const team = pair[side];
+                    const score = side === "a" ? pair.scoreA : pair.scoreB;
+                    const winner = pair.winnerId !== null && pair.winnerId === team?.id;
+                    return (
+                      <div
+                        key={side}
+                        className={
+                          "flex items-center gap-2 px-3 py-2 text-sm " +
+                          (side === "a" ? "border-b border-[var(--border)] " : "") +
+                          (winner ? "font-bold" : "text-[var(--text-muted)]")
+                        }
+                      >
+                        <TeamNumber
+                          value={team?.number ?? null}
+                          category={categoryCode}
+                          size="sm"
+                        />
+                        <span className="min-w-0 flex-1 truncate">
+                          {team?.name ?? "kutilmoqda"}
+                        </span>
+                        <span className="tnum shrink-0 font-semibold">
+                          {pair.status === "done" ? score : "–"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {pair.fieldNo && (
+                    <p className="border-t border-[var(--border)] px-3 py-1 text-[11px] text-[var(--text-subtle)]">
+                      {pair.fieldNo}-maydon
+                    </p>
+                  )}
+                </Card>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {totalRounds > 0 && rounds.size < totalRounds && (
+        <p className="text-xs text-[var(--text-muted)]">
+          Keyingi bosqichlar oldingisi tugagach oʻzi ochiladi.
+        </p>
+      )}
     </section>
   );
 }

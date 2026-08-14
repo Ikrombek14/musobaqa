@@ -41,6 +41,10 @@ function DrawCard({ row }: { row: Row }) {
   if (!category) return null;
 
   const canDraw = row.checkedIn >= 2;
+  const preview =
+    category.format === "group_playoff" && row.checkedIn >= 2
+      ? previewGroups(row.checkedIn, row.groupSize)
+      : null;
 
   const handleRun = () => {
     startTransition(async () => {
@@ -82,12 +86,19 @@ function DrawCard({ row }: { row: Row }) {
             <h2 className="font-bold">{category.name}</h2>
             <p className="tnum text-sm text-[var(--text-muted)]">
               {row.checkedIn} ta check-in qilingan jamoa
-              {category.format === "group_playoff" &&
-                ` · ${row.groupSize} talik guruh · ${Math.max(
-                  1,
-                  Math.ceil(row.checkedIn / row.groupSize),
-                )} guruh chiqadi`}
+              {category.format === "group_playoff" && ` · ${row.groupSize} talik guruh`}
             </p>
+            {/* Jerebyovkadan OLDIN nima chiqishini koʻrsatamiz —
+                guruh oʻlchamini keyin oʻzgartirib boʻlmaydi */}
+            {category.format === "group_playoff" && !row.drawLocked && preview && (
+              <p className="tnum mt-0.5 text-sm font-medium">
+                {preview.groups} guruh · {preview.matches} ta guruh oʻyini
+                <span className="font-normal text-[var(--text-muted)]">
+                  {" "}
+                  ({preview.shape})
+                </span>
+              </p>
+            )}
           </div>
         </div>
         {row.drawLocked ? (
@@ -231,4 +242,30 @@ function DrawCard({ row }: { row: Row }) {
       </div>
     </Card>
   );
+}
+
+/**
+ * Jerebyovkadan oldin nima chiqishini hisoblaydi.
+ *
+ * `drawGroups` bilan bir xil qoida: guruhlar soni `ceil(n / oʻlcham)`,
+ * jamoalar esa teng taqsimlanadi. Guruh oʻlchamini jerebyovkadan keyin
+ * oʻzgartirib boʻlmaydi, shuning uchun tashkilotchi natijani OLDIN
+ * koʻrishi kerak: 4 talik guruhda 6 tadan oʻyin, 3 talikda 3 tadan.
+ */
+function previewGroups(
+  teams: number,
+  size: number,
+): { groups: number; matches: number; shape: string } {
+  const groups = Math.max(1, Math.ceil(teams / size));
+  const base = Math.floor(teams / groups);
+  const bigger = teams % groups; // shuncha guruhda bittadan koʻp
+
+  const pairs = (n: number) => (n * (n - 1)) / 2;
+  const matches = bigger * pairs(base + 1) + (groups - bigger) * pairs(base);
+
+  const parts: string[] = [];
+  if (bigger > 0) parts.push(`${bigger} ta ${base + 1} talik`);
+  if (groups - bigger > 0) parts.push(`${groups - bigger} ta ${base} talik`);
+
+  return { groups, matches, shape: parts.join(", ") };
 }
