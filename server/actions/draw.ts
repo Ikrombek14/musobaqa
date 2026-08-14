@@ -300,8 +300,11 @@ export async function cancelDraw(categoryCode: string): Promise<DrawState> {
   let admin;
   try {
     admin = await requireAdmin();
-  } catch {
-    return { ok: false, error: "Ruxsat yoʻq" };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof AuthError ? err.message : `Kirish xatosi: ${(err as Error).message}`,
+    };
   }
   if (!isCategoryCode(categoryCode)) return { ok: false, error: "Notoʻgʻri yoʻnalish" };
 
@@ -386,8 +389,13 @@ export async function resetCategory(
   let admin;
   try {
     admin = await requireAdmin();
-  } catch {
-    return { ok: false, error: "Ruxsat yoʻq" };
+  } catch (err) {
+    // Sababni yashirmaymiz: «Ruxsat yoʻq» degan quruq matn bilan
+    // sessiya tugaganini ham, boshqa xatoni ham ajratib boʻlmaydi
+    return {
+      ok: false,
+      error: err instanceof AuthError ? err.message : `Kirish xatosi: ${(err as Error).message}`,
+    };
   }
   if (!isCategoryCode(categoryCode)) return { ok: false, error: "Notoʻgʻri yoʻnalish" };
 
