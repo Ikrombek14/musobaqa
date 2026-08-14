@@ -39,6 +39,17 @@ const CASES: [string, string | null][] = [
   ["RC", "RC"],
   ["", null],
   ["shaxmat", null],
+
+  // Tashkilotchining haqiqiy roʻyxatidagi yozuvlar (2026-avgust).
+  // «Lego Sumo (EV3/SPIKE)» ichida «sumo» ham bor: eng uzun mos
+  // kelgan taxallus gʻolib boʻlmasa butun Lego yoʻnalishi Arduino
+  // Robosumoga tushib ketadi.
+  ["RoboFutbol", "F"],
+  ["Arduino Sumo", "S"],
+  ["Lego Sumo (EV3/SPIKE)", "LS"],
+  ["RoboRace (WeDo)", "RC"],
+  ["Line Follower", "LF"],
+  ["Loyihalar taqdimoti", null],
 ];
 for (const [input, expected] of CASES) {
   const got = resolveCategory(input);

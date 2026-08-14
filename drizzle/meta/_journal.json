@@ -43,6 +43,13 @@
       "when": 1786619031893,
       "tag": "0005_categories_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786717770950,
+      "tag": "0006_more_football_tags",
+      "breakpoints": true
     }
   ]
 }

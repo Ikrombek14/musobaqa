@@ -43,7 +43,7 @@ export const FIELD_LABELS: Record<FieldKey, string> = {
 const HINTS: Record<Exclude<FieldKey, "members">, string[]> = {
   categoryCode: ["yonalish", "yunalish", "kategoriya", "nominatsiya", "category", "tur"],
   name: ["jamoa", "jamoa nomi", "team", "komanda", "guruh nomi", "nomi"],
-  school: ["maktab", "markaz", "school", "muassasa", "tashkilot", "oquv"],
+  school: ["maktab", "markaz", "filial", "school", "muassasa", "tashkilot", "oquv"],
   region: ["viloyat", "hudud", "region", "shahar", "tuman"],
   coach: ["murabbiy", "ustoz", "coach", "rahbar", "trener", "oqituvchi"],
   phone: ["telefon", "tel", "phone", "raqam", "aloqa"],
@@ -140,18 +140,23 @@ export function resolveCategory(value: string | null | undefined): CategoryCode 
   }
 
   // 4) Ichida uchrasa — faqat yetarlicha uzun taxalluslar uchun
-  //    («Robofutbol 6-8 yosh» kabi yozuvlar uchun kerak)
+  //    («Robofutbol 6-8 yosh» kabi yozuvlar uchun kerak).
+  //
+  //    ⚠️ ENG UZUN mos kelgan taxallus gʻolib boʻladi, roʻyxatdagi
+  //    birinchisi emas. «Lego Sumo (EV3/SPIKE)» ichida ham «sumo»
+  //    (Arduino), ham «lego sumo» bor — roʻyxat tartibi boʻyicha
+  //    olinsa butun Lego yoʻnalishi Arduino Robosumoga tushib ketardi.
+  let best: { code: CategoryCode; length: number } | null = null;
   for (const [code, aliases] of Object.entries(CATEGORY_ALIASES)) {
-    if (
-      aliases.some(
-        (alias) => alias.length >= MIN_PARTIAL_LENGTH && text.includes(alias),
-      )
-    ) {
-      return code as CategoryCode;
+    for (const alias of aliases) {
+      if (alias.length < MIN_PARTIAL_LENGTH || !text.includes(alias)) continue;
+      if (!best || alias.length > best.length) {
+        best = { code: code as CategoryCode, length: alias.length };
+      }
     }
   }
 
-  return null;
+  return best?.code ?? null;
 }
 
 /* ============================================================
