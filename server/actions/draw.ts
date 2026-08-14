@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { emit } from "@/lib/realtime/emit";
 import { requireAdmin, AuthError } from "@/lib/auth/session";
@@ -354,6 +354,115 @@ export async function cancelDraw(categoryCode: string): Promise<DrawState> {
     revalidatePath("/admin/draw");
     revalidatePath(`/jonli/${CATEGORIES[categoryCode].slug}`);
     return { ok: true, seed: "", warnings: [], summary: "Jerebyovka bekor qilindi" };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/* ============================================================
+   Toʻliq qayta boshlash
+   ============================================================ */
+
+/**
+ * Yoʻnalishni noldan boshlash — natijalar bilan birga.
+ *
+ * `cancelDraw` natija yozilgan boʻlsa rad etadi va bu toʻgʻri: musobaqa
+ * ketayotganda tasodifan bosilgan tugma butun kunni yoʻqotardi. Lekin
+ * tashkilotchida oxirgi chora boʻlishi kerak — masalan jerebyovka
+ * notoʻgʻri sozlama bilan oʻtkazilgan va hammasini qaytadan qilish
+ * kerak.
+ *
+ * Shuning uchun bu yerda tasdiq YOZIB kiritiladi: admin yoʻnalish
+ * nomini aynan koʻchirib yozadi. Bir bosishlik tugma bunday amal
+ * uchun juda arzon.
+ *
+ * Oʻchadi: oʻyinlar, guruhlar, urinishlar (linefollower), jerebyovka
+ * yozuvi. Qoladi: jamoalar, check-in, yorliqlar, hakamlar.
+ */
+export async function resetCategory(
+  categoryCode: string,
+  confirmation: string,
+): Promise<DrawState> {
+  let admin;
+  try {
+    admin = await requireAdmin();
+  } catch {
+    return { ok: false, error: "Ruxsat yoʻq" };
+  }
+  if (!isCategoryCode(categoryCode)) return { ok: false, error: "Notoʻgʻri yoʻnalish" };
+
+  const category = CATEGORIES[categoryCode];
+  if (confirmation.trim().toLowerCase() !== category.name.toLowerCase()) {
+    return {
+      ok: false,
+      error: `Tasdiq uchun «${category.name}» deb yozing.`,
+    };
+  }
+
+  try {
+    const summary = await db.transaction(async (tx) => {
+      const [before] = await tx
+        .select({
+          matches: sql<number>`count(*)::int`,
+          done: sql<number>`count(*) filter (where ${schema.matches.status} = 'done')::int`,
+        })
+        .from(schema.matches)
+        .where(eq(schema.matches.categoryCode, categoryCode));
+
+      const teamIds = await tx
+        .select({ id: schema.teams.id })
+        .from(schema.teams)
+        .where(eq(schema.teams.categoryCode, categoryCode));
+
+      await tx.delete(schema.matches).where(eq(schema.matches.categoryCode, categoryCode));
+      await tx.delete(schema.groups).where(eq(schema.groups.categoryCode, categoryCode));
+
+      // Linefollowerda natija `runs` da — u ham tozalanadi
+      if (teamIds.length > 0) {
+        await tx.delete(schema.runs).where(
+          inArray(
+            schema.runs.teamId,
+            teamIds.map((t) => t.id),
+          ),
+        );
+      }
+
+      await tx
+        .update(schema.draws)
+        .set({ cancelledAt: new Date() })
+        .where(
+          and(
+            eq(schema.draws.categoryCode, categoryCode),
+            sql`${schema.draws.cancelledAt} is null`,
+          ),
+        );
+      await tx
+        .update(schema.categories)
+        .set({ drawLocked: false })
+        .where(eq(schema.categories.code, categoryCode));
+
+      await tx.insert(schema.auditLog).values({
+        actor: admin.name,
+        action: "draw.reset",
+        entity: "category",
+        entityId: categoryCode,
+        before: { matches: before?.matches ?? 0, results: before?.done ?? 0 },
+      });
+
+      await emit(tx, categoryCode, "draw.cancelled", { categoryCode, reset: true });
+
+      return `${category.name} noldan boshlandi — ${before?.matches ?? 0} ta oʻyin va ${
+        before?.done ?? 0
+      } ta natija oʻchirildi. Jamoalar va raqamlar joyida.`;
+    });
+
+    revalidatePath("/admin/draw");
+    revalidatePath("/admin/juftliklar");
+    revalidatePath("/admin");
+    revalidatePath("/hakam");
+    revalidatePath(`/jonli/${category.slug}`);
+    revalidatePath("/");
+    return { ok: true, seed: "", warnings: [], summary };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

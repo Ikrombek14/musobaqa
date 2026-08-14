@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { AlertTriangle, CheckCircle2, Shuffle, Trophy, Undo2 } from "lucide-react";
 import { CATEGORIES, type CategoryCode } from "@/lib/categories";
-import { cancelDraw, runDraw, type DrawState } from "@/server/actions/draw";
+import { cancelDraw, resetCategory, runDraw, type DrawState } from "@/server/actions/draw";
 import { generatePlayoff } from "@/server/actions/playoff";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/primitives";
@@ -230,7 +230,7 @@ function DrawCard({ row }: { row: Row }) {
               disabled={pending || row.matchesPlayed > 0}
               title={
                 row.matchesPlayed > 0
-                  ? "Natija yozilgan — bekor qilib boʻlmaydi"
+                  ? "Natija yozilgan — pastdagi «Noldan boshlash» dan foydalaning"
                   : undefined
               }
             >
@@ -240,6 +240,15 @@ function DrawCard({ row }: { row: Row }) {
           </>
         )}
       </div>
+
+      {/*
+        Oxirgi chora: natija yozilgan boʻlsa ham hammasini oʻchirib
+        qaytadan boshlash. Bir bosishlik tugma emas — yoʻnalish nomi
+        yozib tasdiqlanadi, chunki qaytarib boʻlmaydi.
+      */}
+      {row.drawLocked && row.matchesPlayed > 0 && (
+        <ResetZone code={code} name={category.name} matchesPlayed={row.matchesPlayed} />
+      )}
     </Card>
   );
 }
@@ -268,4 +277,111 @@ function previewGroups(
   if (groups - bigger > 0) parts.push(`${groups - bigger} ta ${base} talik`);
 
   return { groups, matches, shape: parts.join(", ") };
+}
+
+/* ============================================================
+   Noldan boshlash — xavfli zona
+   ============================================================ */
+
+/**
+ * Yoʻnalishni natijalari bilan birga tozalash.
+ *
+ * «Bekor qilish» natija yozilgan boʻlsa ishlamaydi va bu ataylab:
+ * musobaqa ketayotganda tasodifan bosilgan tugma butun kunni
+ * yoʻqotardi. Lekin tashkilotchida oxirgi chora boʻlishi kerak —
+ * jerebyovka notoʻgʻri sozlama bilan oʻtkazilgan boʻlishi mumkin.
+ *
+ * Shuning uchun tasdiq YOZIB kiritiladi. Bu ataylab sekin: bunday
+ * amal shoshib bajarilmasligi kerak.
+ */
+function ResetZone({
+  code,
+  name,
+  matchesPlayed,
+}: {
+  code: CategoryCode;
+  name: string;
+  matchesPlayed: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [state, setState] = useState<DrawState | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const matches = text.trim().toLowerCase() === name.toLowerCase();
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-3 self-start text-xs font-medium text-[var(--text-subtle)] underline-offset-2 hover:text-[var(--danger)] hover:underline"
+      >
+        Noldan boshlash
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--danger)] p-3">
+      <p className="text-sm font-semibold text-[var(--danger)]">
+        {name}ni noldan boshlash
+      </p>
+      <p className="mt-1 text-xs text-[var(--text-muted)]">
+        <strong className="tnum">{matchesPlayed}</strong> ta yozilgan natija, barcha
+        oʻyin va guruhlar oʻchadi. Jamoalar, raqamlar va hakamlar joyida qoladi.
+        Qaytarib boʻlmaydi.
+      </p>
+
+      <label htmlFor={`reset-${code}`} className="mt-2 block text-xs font-medium">
+        Tasdiq uchun «{name}» deb yozing
+      </label>
+      <input
+        id={`reset-${code}`}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        autoComplete="off"
+        className="mt-1 h-9 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-2 text-sm outline-none focus:border-[var(--danger)]"
+      />
+
+      {state?.ok === false && (
+        <p role="alert" className="mt-2 text-xs font-medium text-[var(--danger)]">
+          {state.error}
+        </p>
+      )}
+
+      <div className="mt-3 flex gap-2">
+        <Button
+          variant="danger"
+          size="sm"
+          disabled={!matches}
+          loading={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const result = await resetCategory(code, text);
+              setState(result);
+              if (result.ok) {
+                setOpen(false);
+                setText("");
+              }
+            })
+          }
+        >
+          Hammasini oʻchirish
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setOpen(false);
+            setText("");
+            setState(null);
+          }}
+          disabled={pending}
+        >
+          Bekor
+        </Button>
+      </div>
+    </div>
+  );
 }
