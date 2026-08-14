@@ -27,10 +27,6 @@ export default async function LiveIndexPage() {
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
           Robototexnika musobaqasi
         </h1>
-        <p className="mt-3 max-w-[62ch] text-[var(--text-muted)]">
-          Toʻrt yoʻnalish boʻyicha jonli natijalar. Hakam natijani saqlagan
-          zahoti tablo oʻzi yangilanadi — sahifani qayta yuklash shart emas.
-        </p>
         {totalChecked > 0 && (
           <p className="tnum mt-3 text-sm text-[var(--text-muted)]">
             <span className="font-bold text-[var(--text)]">{totalChecked}</span> ta jamoa

@@ -77,11 +77,6 @@ export default async function TagsPage({ searchParams }: PageProps<"/admin/raqam
       <div className="no-print flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Yorliqlar</h1>
-          <p className="mt-1 max-w-[75ch] text-sm text-[var(--text-muted)]">
-            Chop eting va qirqing. Bola kelganda robotga yopishtiring, keyin
-            check-in ekranida kodni kiritib jamoaga biriktiring. QR'ni
-            skanerlagan odam qaysi jamoa ekanini koʻradi.
-          </p>
         </div>
         <PrintButton />
       </div>

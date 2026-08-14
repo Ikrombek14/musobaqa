@@ -32,11 +32,6 @@ export default async function TeamsPage({ searchParams }: PageProps<"/admin/jamo
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Jamoalar</h1>
-        <p className="mt-1 max-w-[75ch] text-sm text-[var(--text-muted)]">
-          Barcha ishtirokchilar, ularning maktabi, murabbiysi va guruhi. Check-in
-          real vaqtda tushib turadi — roʻyxatdan oʻtish stoli ishlaganda bu
-          sahifani ochiq qoldirsangiz yetarli.
-        </p>
       </div>
 
       <TeamsTable

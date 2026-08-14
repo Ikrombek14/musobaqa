@@ -24,8 +24,6 @@ jobs:
   #     (bazasiz, 2 soniya; ular haqiqiy xatolarni topgan:
   #      «shaxmat» → Sumo, notoʻgʻri bosqich nomlari)
   #
-  # Brauzer sinovlari bu yerda ISHLAMAYDI — ular 10+ daqiqa oladi.
-  # Kerak boʻlganda qoʻlda: `npm run e2e` yoki «E2E» workflow'i.
   # ------------------------------------------------------------
   check:
     runs-on: ubuntu-latest

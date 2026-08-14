@@ -42,11 +42,6 @@ export default async function SettingsPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Sozlamalar</h1>
-        <p className="mt-1 max-w-[75ch] text-sm text-[var(--text-muted)]">
-          Maydonlar soni, guruh oʻlchami va oʻyin davomiyligi. Maydonlar sonini
-          musobaqa davomida ham oʻzgartirsa boʻladi — boshlanmagan oʻyinlar
-          darhol qaytadan taqsimlanadi va hakamlar ekranida yangilanadi.
-        </p>
       </div>
 
       <SettingsPanel categories={categories} />

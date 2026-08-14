@@ -47,11 +47,6 @@ export default async function DrawPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Jerebyovka</h1>
-        <p className="mt-1 max-w-[70ch] text-sm text-[var(--text-muted)]">
-          Faqat check-in qilingan jamoalar qatnashadi. Har jerebyovkaning seed’i
-          saqlanadi — nizo chiqsa natijani qayta hisoblab isbotlash mumkin.
-          Robofutbolda bir maktabning ikki jamoasi bitta guruhga tushmaydi.
-        </p>
       </div>
 
       <DrawPanel

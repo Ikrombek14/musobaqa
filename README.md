@@ -57,8 +57,6 @@ dagi `ADMIN_PASSWORD`.
 
 ```bash
 npm run verify          # mantiq: jerebyovka, raqamlash, avtomatik turlar
-npm run start:e2e       # 3100 portda production server (alohida terminal)
-npm run e2e             # 32 ta brauzer sinovi
 ```
 
 E2E **production build**ga uriladi, dev serverga emas: dev rejimda Next

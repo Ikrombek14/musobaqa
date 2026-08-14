@@ -22,10 +22,6 @@ export default async function PairingsPage({ searchParams }: PageProps<"/admin/j
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Kim bilan kim</h1>
-        <p className="mt-1 max-w-[75ch] text-sm text-[var(--text-muted)]">
-          Jerebyovka natijasi: guruh tarkiblari va barcha juftliklar. Natijalar
-          yozilgani sari shu sahifa oʻzi yangilanadi.
-        </p>
       </div>
 
       <PairingsView data={data} />
