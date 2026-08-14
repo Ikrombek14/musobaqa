@@ -36,6 +36,8 @@ export type BoardMatch = {
   winnerId: number | null;
   status: string;
   isBye: boolean;
+  /** 3-oʻrin uchun oʻyin — final bilan bir bosqichda turadi */
+  thirdPlace: boolean;
   roundsJson: unknown;
 };
 
@@ -115,6 +117,7 @@ export const getBoardData = cache(async (categoryCode: CategoryCode): Promise<Bo
         winnerId: schema.matches.winnerId,
         status: schema.matches.status,
         isBye: schema.matches.isBye,
+        thirdPlace: schema.matches.thirdPlace,
         roundsJson: schema.matches.roundsJson,
       })
       .from(schema.matches)

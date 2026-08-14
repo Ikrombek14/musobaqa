@@ -88,6 +88,13 @@ export function JudgePanel(props: Props) {
   );
 }
 
+/** Kartochka sarlavhasi: guruh nomi yoki bosqich */
+function matchLabel(match: JudgeMatch, totalRounds: number): string {
+  if (match.groupName) return `${match.groupName} guruh`;
+  if (match.thirdPlace) return "3-oʻrin uchun";
+  return roundName(match.round, totalRounds);
+}
+
 /* ============================================================
    O'yin asosidagi yo'nalishlar: robofutbol, sumo, robrace
    ============================================================ */
@@ -148,9 +155,7 @@ function MatchPanel({ work, categoryCode, fieldNo }: Props) {
   const pendingByLabel = (() => {
     const buckets = new Map<string, JudgeMatch[]>();
     for (const match of pending) {
-      const label = match.groupName
-        ? `${match.groupName} guruh`
-        : roundName(match.round, work.totalRounds);
+      const label = matchLabel(match, work.totalRounds);
       buckets.set(label, [...(buckets.get(label) ?? []), match]);
     }
     return [...buckets.entries()];
@@ -294,10 +299,7 @@ function MatchCard({
   };
 
   const ready = match.teamA !== null && match.teamB !== null;
-  const label =
-    match.stage === "group"
-      ? `${match.groupName ?? "?"} guruh`
-      : roundName(match.round, totalRounds);
+  const label = matchLabel(match, totalRounds);
 
   const handleSumoUndo = () => {
     startTransition(async () => {

@@ -316,7 +316,7 @@ body {
   }
 
   /* Kartochkani keyingi bosqichga ulaydigan gorizontal chiziq */
-  .bracket-round:not(:last-child) .bracket-match::after {
+  .bracket-round[data-connect="true"] .bracket-match::after {
     content: "";
     position: absolute;
     top: 50%;
@@ -326,7 +326,7 @@ body {
   }
 
   /* Juftlikni birlashtiruvchi tik chiziq */
-  .bracket-round:not(:last-child) .bracket-match::before {
+  .bracket-round[data-connect="true"] .bracket-match::before {
     content: "";
     position: absolute;
     right: -1.25rem;
@@ -335,11 +335,11 @@ body {
     border-right: 2px solid var(--border-strong);
   }
 
-  .bracket-round:not(:last-child) .bracket-match:nth-child(odd)::before {
+  .bracket-round[data-connect="true"] .bracket-match:nth-child(odd)::before {
     top: 50%;
   }
 
-  .bracket-round:not(:last-child) .bracket-match:nth-child(even)::before {
+  .bracket-round[data-connect="true"] .bracket-match:nth-child(even)::before {
     bottom: 50%;
   }
 

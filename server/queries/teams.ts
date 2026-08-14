@@ -154,6 +154,7 @@ export async function getPairings(categoryCode: CategoryCode): Promise<PairingsD
         scoreB: schema.matches.scoreB,
         winnerId: schema.matches.winnerId,
         isBye: schema.matches.isBye,
+        thirdPlace: schema.matches.thirdPlace,
         groupName: schema.groups.name,
         aId: teamA.id,
         aName: teamA.name,
@@ -238,9 +239,11 @@ export async function getPairings(categoryCode: CategoryCode): Promise<PairingsD
     roundLabel:
       row.stage === "group"
         ? `${row.round}-tur`
-        : row.isBye
-          ? "Raqibsiz"
-          : playoffRoundLabel(row.round, totalRounds),
+        : row.thirdPlace
+          ? "3-oʻrin uchun"
+          : row.isBye
+            ? "Raqibsiz"
+            : playoffRoundLabel(row.round, totalRounds),
     groupName: row.groupName,
     fieldNo: row.fieldNo,
     status: row.isBye ? "bye" : row.status,

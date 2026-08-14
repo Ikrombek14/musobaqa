@@ -421,17 +421,28 @@ function MatchRow({
    To'r (sumo, robrace)
    ============================================================ */
 function BracketView({ data, state, teamById }: ViewProps) {
-  const rounds = useMemo(() => {
+  const { rounds, third } = useMemo(() => {
     const map = new Map<number, BoardMatch[]>();
+    let bronze: BoardMatch | null = null;
+
     for (const match of state.matches) {
       if (match.stage !== "playoff" && data.groups.length > 0) continue;
+      // 3-oʻrin oʻyini final bilan bir bosqichda, lekin alohida ustunda
+      if (match.thirdPlace) {
+        bronze = match;
+        continue;
+      }
       const list = map.get(match.round) ?? [];
       list.push(match);
       map.set(match.round, list);
     }
-    return [...map.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([round, list]) => [round, [...list].sort((x, y) => x.slot - y.slot)] as const);
+
+    return {
+      rounds: [...map.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([round, list]) => [round, [...list].sort((x, y) => x.slot - y.slot)] as const),
+      third: bronze,
+    };
   }, [state.matches, data.groups.length]);
 
   const totalRounds = rounds.length;
@@ -459,8 +470,14 @@ function BracketView({ data, state, teamById }: ViewProps) {
       {champion && <Champion team={champion} category={data.categoryCode} />}
 
       <div className="bracket">
-        {rounds.map(([round, matches]) => (
-          <section key={round} className="bracket-round">
+        {rounds.map(([round, matches], index) => (
+          <section
+            key={round}
+            className="bracket-round"
+            /* Oxirgi bosqichdan keyin ulanadigan joy yoʻq — chiziq ham yoʻq.
+               `:not(:last-child)` ishlamaydi: bronza ustuni oxirida turadi. */
+            data-connect={index < rounds.length - 1 ? "true" : undefined}
+          >
             <h2 className="bracket-title">{roundName(round, totalRounds)}</h2>
             {matches.map((match) => (
               <BracketCard
@@ -473,6 +490,19 @@ function BracketView({ data, state, teamById }: ViewProps) {
             ))}
           </section>
         ))}
+
+        {/* Bronza — final ustunidan keyin, chiziqsiz alohida */}
+        {third && (
+          <section className="bracket-round">
+            <h2 className="bracket-title">3-oʻrin uchun</h2>
+            <BracketCard
+              match={third}
+              teamById={teamById}
+              category={data.categoryCode}
+              flashed={state.flashed.has(third.id)}
+            />
+          </section>
+        )}
       </div>
     </div>
   );

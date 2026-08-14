@@ -74,7 +74,75 @@ export async function insertBracket(
       .where(eq(schema.matches.id, idByKey.get(`${match.nextRound}:${match.nextSlot}`)!));
   }
 
+  /**
+   * 3-oʻrin uchun oʻyin.
+   *
+   * Yarim finalda yutqazgan ikki jamoa oʻzaro oʻynaydi — musobaqada
+   * bronza medal ham beriladi. Oʻyin final bilan bir bosqichda turadi
+   * (`round` bir xil), `third_place` bayrogʻi bilan ajratiladi.
+   *
+   * Yarim finallarning `loser_match_id` si shu oʻyinga qaratiladi:
+   * natija yozilishi bilan yutqazgan avtomatik tushadi — xuddi gʻolib
+   * finalga tushgani kabi.
+   */
+  if (bracket.totalRounds >= 2) {
+    const semiRound = bracket.totalRounds - 1;
+    const semis = bracket.matches
+      .filter((m) => m.round === semiRound)
+      .sort((a, b) => a.slot - b.slot);
+
+    if (semis.length === 2) {
+      const [row] = await tx
+        .insert(schema.matches)
+        .values({
+          categoryCode,
+          stage,
+          round: bracket.totalRounds,
+          slot: 1, // final — 0, bronza — 1
+          orderNo: orderNo++,
+          thirdPlace: true,
+          status: "pending",
+        })
+        .returning({ id: schema.matches.id });
+
+      for (const [index, semi] of semis.entries()) {
+        await tx
+          .update(schema.matches)
+          .set({ loserMatchId: row.id, loserSlot: index === 0 ? "a" : "b" })
+          .where(eq(schema.matches.id, idByKey.get(`${semi.round}:${semi.slot}`)!));
+      }
+    }
+  }
+
   return idByKey;
+}
+
+/**
+ * Yutqazganni 3-oʻrin oʻyiniga koʻchiradi.
+ *
+ * `advanceWinner` bilan bir xil ish, faqat teskari tomon. Yarim
+ * finaldan boshqa oʻyinlarda `loser_match_id` boʻsh — funksiya hech
+ * narsa qilmaydi.
+ */
+export async function advanceLoser(
+  tx: Tx,
+  matchId: number,
+  loserId: number | null,
+): Promise<void> {
+  const [match] = await tx
+    .select({
+      loserMatchId: schema.matches.loserMatchId,
+      loserSlot: schema.matches.loserSlot,
+    })
+    .from(schema.matches)
+    .where(eq(schema.matches.id, matchId));
+
+  if (!match?.loserMatchId || !match.loserSlot) return;
+
+  await tx
+    .update(schema.matches)
+    .set(match.loserSlot === "a" ? { teamAId: loserId } : { teamBId: loserId })
+    .where(eq(schema.matches.id, match.loserMatchId));
 }
 
 /**
@@ -138,16 +206,38 @@ export async function advanceWinner(
   winnerId: number | null,
 ): Promise<void> {
   const [match] = await tx
-    .select({ nextMatchId: schema.matches.nextMatchId, nextSlot: schema.matches.nextSlot })
+    .select({
+      nextMatchId: schema.matches.nextMatchId,
+      nextSlot: schema.matches.nextSlot,
+      teamAId: schema.matches.teamAId,
+      teamBId: schema.matches.teamBId,
+    })
     .from(schema.matches)
     .where(eq(schema.matches.id, matchId));
+  if (!match) return;
 
-  if (!match?.nextMatchId || !match.nextSlot) return;
+  if (match.nextMatchId && match.nextSlot) {
+    await tx
+      .update(schema.matches)
+      .set(match.nextSlot === "a" ? { teamAId: winnerId } : { teamBId: winnerId })
+      .where(eq(schema.matches.id, match.nextMatchId));
+  }
 
-  await tx
-    .update(schema.matches)
-    .set(match.nextSlot === "a" ? { teamAId: winnerId } : { teamBId: winnerId })
-    .where(eq(schema.matches.id, match.nextMatchId));
+  /*
+    Yutqazgan 3-oʻrin oʻyiniga tushadi. Yutqazganni shu yerda oʻzimiz
+    hisoblaymiz — chaqiruvchi joylarni oʻzgartirish shart emas va
+    natija bekor qilinganda (winnerId = null) u ham qaytarib olinadi.
+  */
+  const loserId =
+    winnerId === null
+      ? null
+      : winnerId === match.teamAId
+        ? match.teamBId
+        : winnerId === match.teamBId
+          ? match.teamAId
+          : null;
+
+  await advanceLoser(tx, matchId, loserId);
 }
 
 /* ============================================================

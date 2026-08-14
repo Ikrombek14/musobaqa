@@ -190,6 +190,11 @@ export const matches = pgTable(
     nextMatchId: bigint("next_match_id", { mode: "number" }),
     nextSlot: text("next_slot"), // a | b
 
+    /** 3-oʻrin uchun oʻyin: yarim finalda yutqazganlar tushadi */
+    thirdPlace: boolean("third_place").notNull().default(false),
+    loserMatchId: bigint("loser_match_id", { mode: "number" }),
+    loserSlot: text("loser_slot"), // a | b
+
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     judgeId: bigint("judge_id", { mode: "number" }),
