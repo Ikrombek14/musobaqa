@@ -249,3 +249,142 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   Pleyoff toʻri
+   ============================================================
+
+   Ikki koʻrinish, bitta razmetka:
+
+   • Telefon (< 900px) — bosqichlar ustma-ust, kartochkalar roʻyxat
+     boʻlib chiqadi. Chiziq chizilmaydi: kichik ekranda u chalkashtiradi,
+     bosqich sarlavhasi esa oʻzi yetarli.
+
+   • Katta ekran — klassik toʻr: bosqichlar chapdan oʻngga, kartochkalar
+     tik oʻqda teng tarqaladi va bir-biriga chiziq bilan ulanadi.
+
+   Chiziqlar `::before` / `::after` bilan chiziladi. Har juftlikning
+   ustki kartochkasi pastga, ostkisi tepaga qarab tik chiziq beradi —
+   ikkalasi qoʻshilib keyingi bosqichdagi oʻyinga olib boradi.
+   Rasm yoʻq, SVG yoʻq — brauzer oʻzi hisoblaydi, shuning uchun toʻr
+   har qanday oʻlchamda toʻgʻri chiqadi.
+*/
+
+.bracket {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bracket-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.25rem 0;
+  background: var(--bg);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+@media (min-width: 900px) {
+  .bracket {
+    flex-direction: row;
+    gap: 2.5rem;
+    align-items: stretch;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+  }
+
+  .bracket-round {
+    flex: 0 0 15rem;
+    justify-content: space-around;
+    gap: 1rem;
+  }
+
+  .bracket-title {
+    position: static;
+    text-align: center;
+  }
+
+  /* Kartochkani keyingi bosqichga ulaydigan gorizontal chiziq */
+  .bracket-round:not(:last-child) .bracket-match::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: -1.25rem;
+    width: 1.25rem;
+    border-top: 2px solid var(--border-strong);
+  }
+
+  /* Juftlikni birlashtiruvchi tik chiziq */
+  .bracket-round:not(:last-child) .bracket-match::before {
+    content: "";
+    position: absolute;
+    right: -1.25rem;
+    width: 0;
+    height: calc(50% + 0.5rem + 2px);
+    border-right: 2px solid var(--border-strong);
+  }
+
+  .bracket-round:not(:last-child) .bracket-match:nth-child(odd)::before {
+    top: 50%;
+  }
+
+  .bracket-round:not(:last-child) .bracket-match:nth-child(even)::before {
+    bottom: 50%;
+  }
+
+  /* Birinchi bosqichdan keyin kartochkalar chapdan ham ulanadi */
+  .bracket-round:not(:first-child) .bracket-match {
+    margin-left: 1.25rem;
+  }
+
+  .bracket-round:not(:first-child) .bracket-match::marker {
+    content: "";
+  }
+}
+
+.bracket-match {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* Ketayotgan oʻyin — koʻzga tashlanadi, lekin bezovta qilmaydi */
+.bracket-match[data-live="true"] {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 18%, transparent);
+}
+
+.bracket-side {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+  min-width: 0;
+}
+
+.bracket-side + .bracket-side {
+  border-top: 1px solid var(--border);
+}
+
+.bracket-side[data-winner="true"] {
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  font-weight: 700;
+}
+
+.bracket-side[data-loser="true"] {
+  color: var(--text-subtle);
+}

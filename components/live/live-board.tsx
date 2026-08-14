@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trophy, Timer, Users } from "lucide-react";
 import { useLive, type LiveEvent } from "@/lib/realtime/use-live";
@@ -176,10 +176,64 @@ export function LiveBoard({ data }: { data: BoardData }) {
           />
         </Card>
       ) : category.format === "group_playoff" ? (
-        <GroupView data={data} state={state} teamById={teamById} />
+        <GroupPlayoffView data={data} state={state} teamById={teamById} />
       ) : (
         <BracketView data={data} state={state} teamById={teamById} />
       )}
+    </div>
+  );
+}
+
+/**
+ * Robofutbol: guruh bosqichi va toʻr — ikki alohida koʻrinish.
+ *
+ * Ikkalasini bir vaqtda koʻrsatsak sahifa juda uzun boʻlib ketadi va
+ * telefonda hech narsa topib boʻlmaydi. Pleyoff tuzilgan boʻlsa u
+ * birinchi ochiladi: musobaqaning qiziq qismi oʻsha, guruh jadvali esa
+ * bir bosishda qoladi.
+ */
+function GroupPlayoffView(props: ViewProps) {
+  const hasPlayoff = props.state.matches.some((m) => m.stage === "playoff");
+  const [tab, setTab] = useState<"groups" | "bracket">("groups");
+
+  // Pleyoff tuzilishi bilan avtomatik oʻsha koʻrinishga oʻtamiz
+  useEffect(() => {
+    if (hasPlayoff) setTab("bracket");
+  }, [hasPlayoff]);
+
+  if (!hasPlayoff) return <GroupView {...props} />;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div
+        role="tablist"
+        aria-label="Bosqichlar"
+        className="flex gap-1 self-start rounded-full bg-[var(--bg-subtle)] p-1"
+      >
+        {(
+          [
+            ["bracket", "Pleyoff toʻri"],
+            ["groups", "Guruh jadvallari"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={
+              "rounded-full px-4 py-2 text-sm font-semibold transition-colors " +
+              (tab === key
+                ? "bg-[var(--surface)] text-[var(--text)] shadow-[var(--shadow-sm)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text)]")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "bracket" ? <BracketView {...props} /> : <GroupView {...props} />}
     </div>
   );
 }
@@ -248,13 +302,31 @@ function GroupView({ data, state, teamById }: ViewProps) {
                       }
                     >
                       <td className="py-2 pl-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          {/* Oʻrin raqami — kim chiqayotgani bir qarashda */}
+                          <span
+                            className={
+                              "tnum flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold " +
+                              (qualifies
+                                ? "bg-[var(--success)] text-white"
+                                : "text-[var(--text-subtle)]")
+                            }
+                          >
+                            {index + 1}
+                          </span>
                           <TeamNumber
                             value={team?.number ?? null}
                             category={data.categoryCode}
                             size="sm"
                           />
-                          <span className="line-clamp-1 font-medium">{team?.name}</span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{team?.name}</span>
+                            {team?.members && team.members !== team.name && (
+                              <span className="block truncate text-[11px] text-[var(--text-subtle)]">
+                                {team.members}
+                              </span>
+                            )}
+                          </span>
                         </div>
                       </td>
                       <td className="tnum text-right text-[var(--text-muted)]">
@@ -352,12 +424,15 @@ function BracketView({ data, state, teamById }: ViewProps) {
   const rounds = useMemo(() => {
     const map = new Map<number, BoardMatch[]>();
     for (const match of state.matches) {
+      if (match.stage !== "playoff" && data.groups.length > 0) continue;
       const list = map.get(match.round) ?? [];
       list.push(match);
       map.set(match.round, list);
     }
-    return [...map.entries()].sort((a, b) => a[0] - b[0]);
-  }, [state.matches]);
+    return [...map.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([round, list]) => [round, [...list].sort((x, y) => x.slot - y.slot)] as const);
+  }, [state.matches, data.groups.length]);
 
   const totalRounds = rounds.length;
 
@@ -367,20 +442,26 @@ function BracketView({ data, state, teamById }: ViewProps) {
         <EmptyState
           icon={<Trophy className="size-8" />}
           title="Toʻr hali tuzilmagan"
-          hint="Jerebyovkadan keyin bosqichlar shu yerda koʻrinadi."
+          hint="Guruh bosqichi tugagach toʻr shu yerda oʻzi paydo boʻladi."
         />
       </Card>
     );
   }
 
+  const final = rounds[totalRounds - 1]?.[1]?.[0];
+  const champion =
+    final && final.status === "done" && final.winnerId
+      ? teamById.get(final.winnerId)
+      : null;
+
   return (
-    <div className="overflow-x-auto pb-2">
-      <div className="flex min-w-max gap-5">
+    <div className="flex flex-col gap-5">
+      {champion && <Champion team={champion} category={data.categoryCode} />}
+
+      <div className="bracket">
         {rounds.map(([round, matches]) => (
-          <section key={round} className="flex w-64 shrink-0 flex-col gap-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-              {roundName(round, totalRounds)}
-            </h2>
+          <section key={round} className="bracket-round">
+            <h2 className="bracket-title">{roundName(round, totalRounds)}</h2>
             {matches.map((match) => (
               <BracketCard
                 key={match.id}
@@ -397,6 +478,33 @@ function BracketView({ data, state, teamById }: ViewProps) {
   );
 }
 
+/** Gʻolib — toʻr tugagach eng tepada, kubok bilan */
+function Champion({
+  team,
+  category,
+}: {
+  team: BoardData["teams"][number];
+  category: CategoryCode;
+}) {
+  return (
+    <div className="flex items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--brand)] bg-[color-mix(in_srgb,var(--brand)_12%,transparent)] p-4">
+      <Trophy className="size-8 shrink-0 text-[var(--brand)]" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          Gʻolib
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <TeamNumber value={team.number} category={category} size="md" />
+          <p className="text-xl font-bold tracking-tight">{team.name}</p>
+        </div>
+        {team.members && (
+          <p className="mt-0.5 text-sm text-[var(--text-muted)]">{team.members}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BracketCard({
   match,
   teamById,
@@ -408,43 +516,58 @@ function BracketCard({
   category: CategoryCode;
   flashed: boolean;
 }) {
-  const rows: ("a" | "b")[] = ["a", "b"];
+  const done = match.status === "done";
 
   return (
-    <Card className={"overflow-hidden " + (flashed ? "flash-once" : "")}>
-      {match.isBye && (
-        <div className="bg-[var(--bg-subtle)] px-3 py-1 text-[11px] font-semibold text-[var(--text-muted)]">
-          Raqibsiz oʻtdi
+    <div
+      className={"bracket-match " + (flashed ? "flash-once" : "")}
+      data-live={match.status === "live" ? "true" : undefined}
+    >
+      {(match.isBye || match.status === "live" || match.fieldNo) && (
+        <div className="flex items-center gap-2 bg-[var(--bg-subtle)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          {match.isBye && <span>Raqibsiz oʻtdi</span>}
+          {match.status === "live" && (
+            <span className="text-[var(--warning)]">Hozir ketmoqda</span>
+          )}
+          {match.fieldNo && !match.isBye && (
+            <span className="ml-auto">{match.fieldNo}-maydon</span>
+          )}
         </div>
       )}
-      {rows.map((side) => {
+
+      {(["a", "b"] as const).map((side) => {
         const teamId = side === "a" ? match.teamAId : match.teamBId;
         const team = teamId ? teamById.get(teamId) : null;
         const score = side === "a" ? match.scoreA : match.scoreB;
-        const isWinner = match.status === "done" && match.winnerId === teamId;
+        const isWinner = done && match.winnerId === teamId;
+        const isLoser = done && match.winnerId !== null && match.winnerId !== teamId;
 
         return (
           <div
             key={side}
-            className={
-              "flex items-center justify-between gap-2 px-3 py-2 text-sm " +
-              (side === "a" ? "border-b border-[var(--border)] " : "") +
-              (isWinner ? "font-bold" : "text-[var(--text-muted)]")
-            }
+            className="bracket-side"
+            data-winner={isWinner ? "true" : undefined}
+            data-loser={isLoser ? "true" : undefined}
           >
-            <div className="flex min-w-0 items-center gap-2">
-              <TeamNumber value={team?.number ?? null} category={category} size="sm" />
-              <span className="truncate">{team?.name ?? "kutilmoqda"}</span>
-            </div>
-            <span className="tnum shrink-0 tabular-nums">
-              {match.status === "pending" ? "" : score}
+            <TeamNumber value={team?.number ?? null} category={category} size="sm" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">{team?.name ?? "kutilmoqda"}</span>
+              {team?.members && team.members !== team.name && (
+                <span className="block truncate text-[11px] font-normal text-[var(--text-subtle)]">
+                  {team.members}
+                </span>
+              )}
+            </span>
+            <span className="tnum shrink-0 tabular-nums font-bold">
+              {done ? score : match.isBye && team ? "✓" : ""}
             </span>
           </div>
         );
       })}
-    </Card>
+    </div>
   );
 }
+
 
 /* ============================================================
    Vaqt reytingi (linefollower)

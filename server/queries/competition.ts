@@ -12,6 +12,14 @@ export type BoardTeam = {
   number: string | null;
   school: string | null;
   region: string | null;
+  /**
+   * Jamoadagi bolalar ismi.
+   *
+   * Robofutbolda jamoa ikki kishilik, jamoa nomi esa birinchi bolaning
+   * ismi. Ikkinchi bolaning ota-onasi tabloda farzandini topa olmasdi —
+   * shuning uchun tarkib toʻliq koʻrsatiladi.
+   */
+  members: string | null;
 };
 
 export type BoardMatch = {
@@ -81,6 +89,10 @@ export const getBoardData = cache(async (categoryCode: CategoryCode): Promise<Bo
         number: schema.teams.number,
         school: schema.teams.school,
         region: schema.teams.region,
+        members: sql<string | null>`(
+          select string_agg(p.full_name, ', ' order by p.id)
+          from participants p where p.team_id = ${schema.teams.id}
+        )`,
       })
       .from(schema.teams)
       .where(
