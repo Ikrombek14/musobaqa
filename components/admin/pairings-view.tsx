@@ -10,7 +10,11 @@ import { computeGroupTable } from "@/lib/standings";
 import { formatDiff } from "@/lib/format";
 import { Badge, Card, EmptyState, LiveDot, TeamNumber } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
-import { clearMatchResult, setMatchResult } from "@/server/actions/admin-matches";
+import {
+  clearMatchResult,
+  setMatchResult,
+  setWalkover,
+} from "@/server/actions/admin-matches";
 import type { PairingsData, PairRow } from "@/server/queries/teams";
 
 /**
@@ -336,7 +340,13 @@ function BracketBoard({
                           {team?.name ?? "kutilmoqda"}
                         </span>
                         <span className="tnum shrink-0 font-semibold">
-                          {pair.status === "done" ? score : "–"}
+                          {pair.walkover
+                            ? winner
+                              ? "TM"
+                              : "—"
+                            : pair.status === "done"
+                              ? score
+                              : "–"}
                         </span>
                       </div>
                     );
@@ -443,9 +453,11 @@ function PairSection({
                     >
                       {pair.status === "bye"
                         ? "raqibsiz"
-                        : pair.status === "done"
-                          ? `${pair.scoreA}:${pair.scoreB}`
-                          : "–:–"}
+                        : pair.walkover
+                          ? "texnik"
+                          : pair.status === "done"
+                            ? `${pair.scoreA}:${pair.scoreB}`
+                            : "–:–"}
                     </button>
                     <span className="text-[10px] text-[var(--text-subtle)]">
                       {pair.groupName && `${pair.groupName} · `}
@@ -502,6 +514,14 @@ function ResultEditor({
       else setError(result.error);
     });
 
+  const walkover = (absentSide: "a" | "b") =>
+    startTransition(async () => {
+      setError(null);
+      const result = await setWalkover(pair.matchId, absentSide);
+      if (result.ok) onDone();
+      else setError(result.error);
+    });
+
   const clear = () =>
     startTransition(async () => {
       setError(null);
@@ -541,6 +561,29 @@ function ResultEditor({
           Hisob teng — gʻolib aniqlanishi shart
         </p>
       )}
+
+      {/* Jamoa kelmagan boʻlsa hisob emas, «texnik» yoziladi */}
+      <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+        <span className="text-[var(--text-muted)]">Kelmadi:</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          loading={pending}
+          onClick={() => walkover("a")}
+          title={`${pair.a?.name} kelmadi — texnik magʻlubiyat`}
+        >
+          {pair.a?.number ?? "A"}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          loading={pending}
+          onClick={() => walkover("b")}
+          title={`${pair.b?.name} kelmadi — texnik magʻlubiyat`}
+        >
+          {pair.b?.number ?? "B"}
+        </Button>
+      </div>
 
       <div className="flex flex-wrap justify-center gap-2">
         <Button variant="primary" size="sm" loading={pending} disabled={a === b} onClick={save}>

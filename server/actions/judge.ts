@@ -6,7 +6,12 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { emit } from "@/lib/realtime/emit";
 import { getSession, requireJudge } from "@/lib/auth/session";
-import { advanceCategory, advanceWinner, type Tx } from "@/server/lib/progression";
+import {
+  advanceCategory,
+  advanceWinner,
+  applyWalkover,
+  type Tx,
+} from "@/server/lib/progression";
 import { CATEGORIES, PENALTY_MS, type CategoryCode } from "@/lib/categories";
 import { toId, toInt } from "@/lib/validate";
 
@@ -602,4 +607,43 @@ function revalidateJudgeViews(categoryCode: string) {
   const slug = CATEGORIES[categoryCode as CategoryCode]?.slug;
   if (slug) revalidatePath(`/jonli/${slug}`);
   revalidatePath("/"); // jonli tablo indeksi bosh sahifada
+}
+
+/* ============================================================
+   Texnik magʻlubiyat
+   ============================================================ */
+
+/**
+ * Jamoa maydonga chiqmadi.
+ *
+ * Hakam soxta hisob yozmasligi uchun: oʻyin «texnik» deb belgilanadi,
+ * gʻolib keyingi bosqichga oʻtadi, guruh jadvalida 3 ochko oladi.
+ */
+export async function saveWalkover(
+  rawMatchId: unknown,
+  absentSide: "a" | "b",
+): Promise<ActionResult> {
+  const judge = await requireJudge().catch(() => null);
+  if (!judge) return { ok: false, error: "Qayta kiring" };
+  if (absentSide !== "a" && absentSide !== "b") {
+    return { ok: false, error: "Notoʻgʻri tomon" };
+  }
+
+  const matchId = toId(rawMatchId);
+  if (matchId === null) return { ok: false, error: "Oʻyin topilmadi" };
+
+  try {
+    await db.transaction(async (tx) => {
+      const match = await loadOwnedMatch(tx, matchId, judge);
+      await ensureEditable(tx, match);
+
+      await applyWalkover(tx, matchId, absentSide, judge.name);
+      await advanceCategory(tx, match.categoryCode as CategoryCode, "tizim");
+    });
+
+    revalidateJudgeViews(judge.categoryCode);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }

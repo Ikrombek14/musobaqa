@@ -6,7 +6,12 @@ import { db, schema } from "@/lib/db";
 import { emit } from "@/lib/realtime/emit";
 import { requireAdmin } from "@/lib/auth/session";
 import { CATEGORIES, type CategoryCode } from "@/lib/categories";
-import { advanceCategory, advanceWinner, type Tx } from "@/server/lib/progression";
+import {
+  advanceCategory,
+  advanceWinner,
+  applyWalkover,
+  type Tx,
+} from "@/server/lib/progression";
 import { toId, toInt } from "@/lib/validate";
 
 export type MatchEditState = { ok: true; message: string } | { ok: false; error: string };
@@ -213,4 +218,40 @@ function revalidateAll() {
     revalidatePath(`/jonli/${category.slug}`);
   }
   revalidatePath("/");
+}
+
+/** Texnik magʻlubiyat — tashkilotchi tomonidan. */
+export async function setWalkover(
+  rawMatchId: unknown,
+  absentSide: "a" | "b",
+): Promise<MatchEditState> {
+  const admin = await requireAdmin().catch(() => null);
+  if (!admin) return { ok: false, error: "Admin sifatida kiring" };
+  if (absentSide !== "a" && absentSide !== "b") {
+    return { ok: false, error: "Notoʻgʻri tomon" };
+  }
+
+  const matchId = toId(rawMatchId);
+  if (matchId === null) return { ok: false, error: "Oʻyin topilmadi" };
+
+  try {
+    const message = await db.transaction(async (tx) => {
+      const [match] = await tx
+        .select()
+        .from(schema.matches)
+        .where(eq(schema.matches.id, matchId));
+      if (!match) throw new Error("Oʻyin topilmadi");
+
+      await guardEditable(tx, match);
+      await applyWalkover(tx, matchId, absentSide, admin.name);
+      await advanceCategory(tx, match.categoryCode as CategoryCode, admin.name);
+
+      return "Texnik magʻlubiyat yozildi";
+    });
+
+    revalidateAll();
+    return { ok: true, message };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }

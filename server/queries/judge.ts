@@ -15,6 +15,7 @@ export type JudgeMatch = {
   scoreB: number;
   winnerId: number | null;
   thirdPlace: boolean;
+  walkover: boolean;
   roundsJson: unknown;
   groupName: string | null;
   teamA: { id: number; name: string; number: string | null } | null;
@@ -55,6 +56,7 @@ export async function getJudgeWork(judge: NonNullable<Session["judge"]>): Promis
       scoreB: schema.matches.scoreB,
       winnerId: schema.matches.winnerId,
       thirdPlace: schema.matches.thirdPlace,
+      walkover: schema.matches.walkover,
       roundsJson: schema.matches.roundsJson,
       groupName: schema.groups.name,
       aId: teamA.id,
@@ -95,6 +97,7 @@ export async function getJudgeWork(judge: NonNullable<Session["judge"]>): Promis
     scoreB: row.scoreB,
     winnerId: row.winnerId,
     thirdPlace: row.thirdPlace,
+    walkover: row.walkover,
     roundsJson: row.roundsJson,
     groupName: row.groupName,
     teamA: row.aId ? { id: row.aId, name: row.aName!, number: row.aNumber } : null,

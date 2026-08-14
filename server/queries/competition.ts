@@ -38,6 +38,8 @@ export type BoardMatch = {
   isBye: boolean;
   /** 3-oʻrin uchun oʻyin — final bilan bir bosqichda turadi */
   thirdPlace: boolean;
+  /** Texnik magʻlubiyat — raqib chiqmadi, hisob oʻrniga «texnik» */
+  walkover: boolean;
   roundsJson: unknown;
 };
 
@@ -118,6 +120,7 @@ export const getBoardData = cache(async (categoryCode: CategoryCode): Promise<Bo
         status: schema.matches.status,
         isBye: schema.matches.isBye,
         thirdPlace: schema.matches.thirdPlace,
+        walkover: schema.matches.walkover,
         roundsJson: schema.matches.roundsJson,
       })
       .from(schema.matches)

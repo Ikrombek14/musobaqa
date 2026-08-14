@@ -107,6 +107,7 @@ export type PairRow = {
   scoreA: number;
   scoreB: number;
   winnerId: number | null;
+  walkover: boolean;
 };
 
 export type GroupComposition = {
@@ -155,6 +156,7 @@ export async function getPairings(categoryCode: CategoryCode): Promise<PairingsD
         winnerId: schema.matches.winnerId,
         isBye: schema.matches.isBye,
         thirdPlace: schema.matches.thirdPlace,
+        walkover: schema.matches.walkover,
         groupName: schema.groups.name,
         aId: teamA.id,
         aName: teamA.name,
@@ -255,6 +257,7 @@ export async function getPairings(categoryCode: CategoryCode): Promise<PairingsD
       : null,
     scoreA: row.scoreA,
     scoreB: row.scoreB,
+    walkover: row.walkover,
     winnerId: row.winnerId,
   }));
 

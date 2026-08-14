@@ -458,3 +458,72 @@ export async function createPlayoffBracket(
 
   return { qualified, totalRounds: bracket.totalRounds };
 }
+
+/* ============================================================
+   Texnik magʻlubiyat
+   ============================================================ */
+
+/**
+ * Jamoa maydonga chiqmadi — raqib texnik gʻalaba oladi.
+ *
+ * Ilgari hakam soxta hisob yozishga majbur edi va statistikada yoʻq
+ * gol qolib ketardi. Endi oʻyin alohida belgilanadi.
+ *
+ * Hisob 1:0 boʻlib qoladi — guruh jadvalida gʻolib 3 ochko olishi
+ * kerak, 0:0 esa hech kimga hech narsa bermaydi. Ekranda raqam emas,
+ * «texnik» deb koʻrsatiladi.
+ *
+ * Chaqiruvchi ruxsatni va tahrir mumkinligini OʻZI tekshiradi.
+ */
+export async function applyWalkover(
+  tx: Tx,
+  matchId: number,
+  /** Qaysi tomon KELMADI */
+  absentSide: "a" | "b",
+  actor: string,
+): Promise<{ winnerId: number | null; categoryCode: string }> {
+  const [match] = await tx
+    .select()
+    .from(schema.matches)
+    .where(eq(schema.matches.id, matchId))
+    .for("update");
+  if (!match) throw new Error("Oʻyin topilmadi");
+  if (match.isBye) throw new Error("Raqibsiz oʻyinda texnik magʻlubiyat boʻlmaydi");
+
+  const winnerId = absentSide === "a" ? match.teamBId : match.teamAId;
+  if (!winnerId) throw new Error("Gʻolib jamoa aniqlanmagan");
+
+  await tx
+    .update(schema.matches)
+    .set({
+      scoreA: absentSide === "a" ? 0 : 1,
+      scoreB: absentSide === "a" ? 1 : 0,
+      winnerId,
+      walkover: true,
+      status: "done",
+      finishedAt: new Date(),
+    })
+    .where(eq(schema.matches.id, matchId));
+
+  if (match.stage === "playoff") await advanceWinner(tx, matchId, winnerId);
+
+  await tx.insert(schema.auditLog).values({
+    actor,
+    action: "match.walkover",
+    entity: "match",
+    entityId: String(matchId),
+    before: { scoreA: match.scoreA, scoreB: match.scoreB, status: match.status },
+    after: { absentSide, winnerId },
+  });
+
+  await emit(tx, match.categoryCode, "match.updated", {
+    matchId,
+    scoreA: absentSide === "a" ? 0 : 1,
+    scoreB: absentSide === "a" ? 1 : 0,
+    winnerId,
+    status: "done",
+    walkover: true,
+  });
+
+  return { winnerId, categoryCode: match.categoryCode };
+}

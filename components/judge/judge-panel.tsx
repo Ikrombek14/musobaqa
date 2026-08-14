@@ -24,6 +24,7 @@ import {
   saveRaceResult,
   saveRun,
   saveSumoRound,
+  saveWalkover,
   undoSumoRound,
 } from "@/server/actions/judge";
 import { Button } from "@/components/ui/button";
@@ -290,8 +291,26 @@ function MatchCard({
    * boshlangan boʻlsa server ruxsat bermaydi.
    */
   const [editing, setEditing] = useState(false);
+  const [walkoverOpen, setWalkoverOpen] = useState(false);
   const isDone = match.status === "done";
   const showControls = !isDone || editing;
+
+  const handleWalkover = (absentSide: "a" | "b") => {
+    startTransition(async () => {
+      setError(null);
+      const result = await saveWalkover(match.id, absentSide);
+      if (result.ok) {
+        onPatch(match.id, {
+          status: "done",
+          scoreA: absentSide === "a" ? 0 : 1,
+          scoreB: absentSide === "a" ? 1 : 0,
+          winnerId: absentSide === "a" ? match.teamB!.id : match.teamA!.id,
+        });
+        setWalkoverOpen(false);
+        finish();
+      } else setError(result.error);
+    });
+  };
 
   const finish = () => {
     setEditing(false);
@@ -335,7 +354,7 @@ function MatchCard({
           {match.status === "done" ? (
             <Badge tone="success">
               <Check className="size-3" aria-hidden="true" />
-              {match.scoreA}:{match.scoreB}
+              {match.walkover ? "texnik" : `${match.scoreA}:${match.scoreB}`}
             </Badge>
           ) : match.status === "live" ? (
             <Badge tone="warning">Ketmoqda</Badge>
@@ -453,6 +472,48 @@ function MatchCard({
                     })
                   }
                 />
+              )}
+
+              {/*
+                Jamoa kelmagan boʻlsa hakam soxta hisob yozmasin.
+                Tugma qadam-baqadam ochiladi: tasodifan bosilmasligi
+                uchun avval «kim kelmadi» soʻraladi.
+              */}
+              {showControls && (
+                <div className="mt-4 border-t border-[var(--border)] pt-3">
+                  {walkoverOpen ? (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-center text-sm font-medium">Kim kelmadi?</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="secondary"
+                          loading={pending}
+                          onClick={() => handleWalkover("a")}
+                        >
+                          {match.teamA?.number ?? "A"}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          loading={pending}
+                          onClick={() => handleWalkover("b")}
+                        >
+                          {match.teamB?.number ?? "B"}
+                        </Button>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setWalkoverOpen(false)}>
+                        Bekor
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setWalkoverOpen(true)}
+                      className="w-full text-center text-sm font-medium text-[var(--text-muted)] underline-offset-4 hover:text-[var(--text)] hover:underline"
+                    >
+                      Jamoa kelmadi — texnik magʻlubiyat
+                    </button>
+                  )}
+                </div>
               )}
 
               {editing && (

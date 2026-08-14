@@ -185,6 +185,8 @@ export const matches = pgTable(
     status: text("status").notNull().default("pending"), // pending | live | done
     /** Bay (raqibsiz o'tish) — avtomatik yopiladi */
     isBye: boolean("is_bye").notNull().default(false),
+    /** Texnik magʻlubiyat — raqib maydonga chiqmadi */
+    walkover: boolean("walkover").notNull().default(false),
 
     /** Pleyoff simlari: g'olib qayerga ketadi */
     nextMatchId: bigint("next_match_id", { mode: "number" }),

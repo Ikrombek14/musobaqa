@@ -53,6 +53,7 @@ function reducer(state: State, event: Action): State {
                 scoreB: Number(event.scoreB ?? m.scoreB),
                 winnerId: (event.winnerId as number | null) ?? null,
                 status: String(event.status ?? m.status),
+                walkover: event.walkover === true,
                 roundsJson: event.rounds ? { rounds: event.rounds } : m.roundsJson,
               }
             : m,
@@ -401,7 +402,7 @@ function MatchRow({
           (done ? "bg-[var(--bg-subtle)]" : "text-[var(--text-subtle)]")
         }
       >
-        {done ? `${match.scoreA}:${match.scoreB}` : "–:–"}
+        {match.walkover ? "texnik" : done ? `${match.scoreA}:${match.scoreB}` : "–:–"}
       </span>
       <span
         className={
@@ -589,7 +590,7 @@ function BracketCard({
               )}
             </span>
             <span className="tnum shrink-0 tabular-nums font-bold">
-              {done ? score : match.isBye && team ? "✓" : ""}
+              {match.walkover ? (isWinner ? "TM" : "—") : done ? score : match.isBye && team ? "✓" : ""}
             </span>
           </div>
         );
