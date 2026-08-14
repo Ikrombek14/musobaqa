@@ -39,8 +39,10 @@ export async function adminLogin(
   return {};
 }
 
+/** Faqat ADMIN sessiyasi tugaydi — hakam paneli ochiq qoladi. */
 export async function adminLogout(): Promise<void> {
   const session = await getSession();
-  session.destroy();
+  delete session.admin;
+  await session.save();
   revalidatePath("/admin", "layout");
 }

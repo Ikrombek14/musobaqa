@@ -58,9 +58,20 @@ export async function judgeLogin(
   return { ok: true };
 }
 
+/**
+ * Faqat HAKAM sessiyasi tugaydi.
+ *
+ * Ilgari bu yerda `session.destroy()` turardi va u butun cookie'ni
+ * oʻchirardi. Tashkilotchi bitta brauzerda ham admin, ham hakam
+ * panelini ochib sinasa, hakamdan chiqishi bilan admin sessiyasi ham
+ * yoʻqolardi: ochiq turgan admin sahifasi eski holatda koʻrinardi,
+ * lekin har qanday amal «Ruxsat yoʻq» qaytarardi va sababi
+ * tushunarsiz edi.
+ */
 export async function judgeLogout(): Promise<void> {
   const session = await getSession();
-  session.destroy();
+  delete session.judge;
+  await session.save();
   revalidatePath("/hakam");
 }
 
