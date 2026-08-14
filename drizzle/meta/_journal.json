@@ -64,6 +64,13 @@
       "when": 1786743558815,
       "tag": "0008_third_place",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786744540191,
+      "tag": "0009_football_advance_two",
+      "breakpoints": true
     }
   ]
 }
