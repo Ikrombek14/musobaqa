@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Camera, Check, RotateCcw, Search, UserPlus, X } from "lucide-react";
+import { Camera, Check, Pencil, RotateCcw, Search, UserPlus, X } from "lucide-react";
 import { CATEGORIES, CATEGORY_LIST, isCategoryCode } from "@/lib/categories";
 import {
   checkInTeam,
   createWalkInTeam,
   saveRobotPhoto,
   searchTeamsAction,
+  updateTeamAtCheckIn,
   type CheckInResult,
 } from "@/server/actions/checkin";
 import { assignTag, nextFreeTag } from "@/server/actions/tags";
@@ -33,6 +34,7 @@ export function CheckInScreen() {
   /** Yorliq qadami uchun yoʻnalish — roʻyxatdan ham, yangi jamoadan ham keladi */
   const [tagCategory, setTagCategory] = useState<string | null>(null);
   const [result, setResult] = useState<CheckInResult | null>(null);
+  const [editing, setEditing] = useState(false);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const requestId = useRef(0);
@@ -63,6 +65,7 @@ export function CheckInScreen() {
     setSelected(null);
     setTagCategory(null);
     setResult(null);
+    setEditing(false);
     setWalkInOpen(false);
     inputRef.current?.focus();
   };
@@ -114,6 +117,20 @@ export function CheckInScreen() {
 
   /* ---------------- 2-qadam: tasdiq ---------------- */
   if (step === "confirm" && selected) {
+    if (editing) {
+      return (
+        <EditForm
+          team={selected}
+          onCancel={() => setEditing(false)}
+          onSaved={(updated) => {
+            setSelected(updated);
+            setEditing(false);
+            setResult(null);
+          }}
+        />
+      );
+    }
+
     return (
       <div className="mx-auto w-full max-w-xl">
         <Card className="p-5">
@@ -135,6 +152,21 @@ export function CheckInScreen() {
             <Field label="Murabbiy" value={selected.coach} />
             <Field label="Ishtirokchilar" value={selected.members} />
           </dl>
+
+          {/*
+            Stolda eng koʻp uchraydigan tuzatish — yoʻnalish. Bola
+            roʻyxatda sumo deb yozilgan boʻlishi va robofutboldan
+            qatnashmoqchi boʻlishi mumkin.
+          */}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-4"
+            onClick={() => setEditing(true)}
+          >
+            <Pencil className="size-4" aria-hidden="true" />
+            Yoʻnalish yoki ismni tuzatish
+          </Button>
 
           {selected.checkedInAt && (
             <p className="mt-4 rounded-[var(--radius-md)] bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]">
@@ -277,6 +309,137 @@ function Field({ label, value }: { label: string; value: string | null }) {
     <div>
       <dt className="text-xs text-[var(--text-muted)]">{label}</dt>
       <dd className="mt-0.5 font-medium">{value || "—"}</dd>
+    </div>
+  );
+}
+
+/* ============================================================
+   Stolda tuzatish — yoʻnalish, ism, ishtirokchilar
+
+   Yoʻnalish oʻzgarsa eski yorliq boʻshaydi (S12 qogʻozi robofutbolda
+   ishlamaydi) va bola yangi qogʻozni oladi. Shuning uchun tahrirdan
+   keyin yorliq qadami baribir bosib oʻtiladi.
+   ============================================================ */
+function EditForm({
+  team,
+  onCancel,
+  onSaved,
+}: {
+  team: SearchHit;
+  onCancel: () => void;
+  onSaved: (team: SearchHit) => void;
+}) {
+  const [categoryCode, setCategoryCode] = useState(team.categoryCode);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const moved = categoryCode !== team.categoryCode;
+
+  return (
+    <div className="mx-auto w-full max-w-xl">
+      <Card className="p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-bold">Maʼlumotni tuzatish</h2>
+          <Button variant="ghost" size="sm" onClick={onCancel} aria-label="Yopish">
+            <X className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+
+        <form
+          className="mt-4 flex flex-col gap-3"
+          action={(formData) =>
+            startTransition(async () => {
+              setError(null);
+              const res = await updateTeamAtCheckIn(null, formData);
+              if (res.ok) {
+                onSaved({
+                  ...team,
+                  name: res.name,
+                  categoryCode,
+                  number: res.number || null,
+                });
+              } else setError(res.error);
+            })
+          }
+        >
+          <input type="hidden" name="teamId" value={team.id} />
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="edit-category" className="text-sm font-medium">
+              Yoʻnalish
+            </label>
+            <select
+              id="edit-category"
+              name="categoryCode"
+              value={categoryCode}
+              onChange={(e) => setCategoryCode(e.target.value)}
+              className="h-11 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-base"
+            >
+              {CATEGORY_LIST.map((cat) => (
+                <option key={cat.code} value={cat.code}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {moved && team.number && (
+            <p className="rounded-[var(--radius-md)] bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]">
+              <span className="tnum font-bold">{team.number}</span> yorligʻi boʻshaydi —
+              bolaga yangi yoʻnalishning qogʻozini bering.
+            </p>
+          )}
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="edit-name" className="text-sm font-medium">
+              Ism / jamoa nomi
+            </label>
+            <input
+              id="edit-name"
+              name="name"
+              required
+              defaultValue={team.name}
+              autoComplete="off"
+              className="h-11 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-base outline-none focus:border-[var(--focus-ring)] focus:shadow-[0_0_0_3px_rgb(47_125_246/0.15)]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="edit-members" className="text-sm font-medium">
+              Ishtirokchilar
+              <span className="ml-1 text-xs text-[var(--text-subtle)]">
+                boʻsh qoldirilsa oʻzgarmaydi
+              </span>
+            </label>
+            <input
+              id="edit-members"
+              name="members"
+              defaultValue={team.members ?? ""}
+              autoComplete="off"
+              className="h-11 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-base outline-none focus:border-[var(--focus-ring)] focus:shadow-[0_0_0_3px_rgb(47_125_246/0.15)]"
+            />
+          </div>
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-[var(--radius-md)] bg-[var(--danger-soft)] px-3 py-2 text-sm font-medium text-[var(--danger)]"
+            >
+              {error}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <Button type="submit" variant="primary" size="lg" block loading={pending}>
+              <Check className="size-5" aria-hidden="true" />
+              Saqlash
+            </Button>
+            <Button type="button" variant="ghost" size="lg" onClick={onCancel} disabled={pending}>
+              Bekor
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   );
 }

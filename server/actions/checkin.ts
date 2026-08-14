@@ -3,7 +3,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -53,6 +53,168 @@ export async function checkInTeam(rawTeamId: unknown): Promise<CheckInResult> {
     // Raqam avtomatik BERILMAYDI — u chop etilgan yorliqdan keladi.
     // Bu qadam faqat «keldi» deb belgilaydi, keyin yorliq biriktiriladi.
     return { ok: true, teamId, number: team.number ?? "", name: team.name };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/* ============================================================
+   Roʻyxatdagi maʼlumotni stolda tuzatish
+   ============================================================ */
+
+const editSchema = z.object({
+  teamId: z.coerce.number().int().positive(),
+  categoryCode: z.string().refine(isCategoryCode, "Yoʻnalish tanlanmagan"),
+  name: z.string().trim().min(2, "Ism kamida 2 belgi").max(120),
+  members: z.string().trim().max(500).optional().or(z.literal("")),
+});
+
+/**
+ * Yoʻnalishni (va ism/ishtirokchilarni) roʻyxatdan oʻtkazish paytida tuzatish.
+ *
+ * Haqiqiy holat: bola roʻyxatda «Arduino Sumo» deb yozilgan, lekin stolga
+ * kelib «men robofutboldan qatnashaman» deydi. Ilgari buning yoʻli
+ * yoʻq edi — admin jamoani oʻchirib qaytadan qoʻshishi kerak boʻlardi.
+ *
+ * Yoʻnalish oʻzgarsa yorliq ham boʻshaydi: S12 qogʻozi robofutbolda
+ * ishlamaydi, prefiks mos kelmaydi. Bola yangi qogʻozni oladi va
+ * keyingi qadamda F prefiksli kod kiritiladi.
+ *
+ * Ikki holatda rad etiladi:
+ *  • jamoa jadvalga tushgan — jerebyovka natijasi buziladi;
+ *  • yangi yoʻnalishda jerebyovka oʻtkazilgan — kech qoʻshilgan jamoa
+ *    hech qaysi guruhga tushmaydi va «tizimda bor, lekin oʻynamaydi»
+ *    holatiga tushib qoladi.
+ */
+export async function updateTeamAtCheckIn(
+  _prev: CheckInResult | null,
+  formData: FormData,
+): Promise<CheckInResult> {
+  const staff = await requireStaff().catch(() => null);
+  if (!staff) return { ok: false, error: "Qayta kiring" };
+
+  const parsed = editSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Maʼlumot notoʻgʻri" };
+  }
+  const input = parsed.data;
+
+  const members = (input.members ?? "")
+    .split(/[,\n]/)
+    .map((m) => m.trim())
+    .filter(Boolean);
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [team] = await tx
+        .select()
+        .from(schema.teams)
+        .where(eq(schema.teams.id, input.teamId))
+        .for("update");
+      if (!team) throw new Error("Jamoa topilmadi");
+
+      const moved = team.categoryCode !== input.categoryCode;
+
+      if (moved) {
+        const [inMatch] = await tx
+          .select({ id: schema.matches.id })
+          .from(schema.matches)
+          .where(
+            or(
+              eq(schema.matches.teamAId, input.teamId),
+              eq(schema.matches.teamBId, input.teamId),
+            ),
+          )
+          .limit(1);
+        if (inMatch) {
+          throw new Error(
+            "Bu jamoa jadvalga kiritilgan — avval jerebyovkani bekor qiling.",
+          );
+        }
+
+        const [target] = await tx
+          .select({ drawLocked: schema.categories.drawLocked, name: schema.categories.name })
+          .from(schema.categories)
+          .where(eq(schema.categories.code, input.categoryCode));
+        if (!target) throw new Error("Yoʻnalish topilmadi");
+        if (target.drawLocked) {
+          throw new Error(
+            `${target.name} boʻyicha jerebyovka oʻtkazilgan — yangi jamoa qoʻshib boʻlmaydi.`,
+          );
+        }
+
+        // Eski yoʻnalishning yorligʻi boʻshaydi: prefiks mos kelmaydi
+        await tx
+          .update(schema.tags)
+          .set({ teamId: null, assignedAt: null, assignedBy: null })
+          .where(eq(schema.tags.teamId, input.teamId));
+
+        // Guruhga tushgan boʻlsa (jerebyovkasiz ham boʻlishi mumkin) — chiqaramiz
+        await tx
+          .delete(schema.groupTeams)
+          .where(eq(schema.groupTeams.teamId, input.teamId));
+      }
+
+      await tx
+        .update(schema.teams)
+        .set({
+          categoryCode: input.categoryCode,
+          name: input.name,
+          // Yoʻnalish oʻzgarsa raqam ham yaroqsiz
+          number: moved ? null : team.number,
+          numberSeq: moved ? null : team.numberSeq,
+          searchText: normalizeSearch(
+            [input.name, team.school, team.coach, team.region, members.join(" ")]
+              .filter(Boolean)
+              .join(" "),
+          ),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.teams.id, input.teamId));
+
+      if (members.length > 0) {
+        await tx.delete(schema.participants).where(eq(schema.participants.teamId, input.teamId));
+        for (const member of members) {
+          await tx.insert(schema.participants).values({ teamId: input.teamId, fullName: member });
+        }
+      }
+
+      await tx.insert(schema.auditLog).values({
+        actor: staff.name,
+        action: moved ? "team.move_category" : "team.update",
+        entity: "team",
+        entityId: String(input.teamId),
+        before: { categoryCode: team.categoryCode, name: team.name, number: team.number },
+        after: { categoryCode: input.categoryCode, name: input.name },
+      });
+
+      // Ikkala kanalga ham: eski yoʻnalish roʻyxatidan chiqadi, yangisiga qoʻshiladi
+      if (moved) {
+        await emit(tx, team.categoryCode, "team.checked_in", {
+          teamId: input.teamId,
+          name: input.name,
+          movedFrom: team.categoryCode,
+        });
+      }
+      await emit(tx, input.categoryCode, "team.checked_in", {
+        teamId: input.teamId,
+        name: input.name,
+        number: moved ? null : team.number,
+        edited: true,
+      });
+
+      return {
+        ok: true as const,
+        teamId: input.teamId,
+        number: moved ? "" : (team.number ?? ""),
+        name: input.name,
+      };
+    });
+
+    revalidatePath("/admin/checkin");
+    revalidatePath("/admin/jamoalar");
+    revalidatePath("/admin");
+    return result;
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
