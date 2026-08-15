@@ -34,100 +34,7 @@ export async function runDraw(categoryCode: string): Promise<DrawState> {
   const category = CATEGORIES[categoryCode];
 
   try {
-    const result = await db.transaction(async (tx) => {
-      // Yo'nalish qatorini qulflaymiz — ikki admin bir vaqtda bosa olmaydi
-      const [settings] = await tx
-        .select()
-        .from(schema.categories)
-        .where(eq(schema.categories.code, categoryCode))
-        .for("update");
-
-      if (!settings) throw new Error("Yoʻnalish topilmadi");
-      if (settings.drawLocked) {
-        throw new Error(
-          "Bu yoʻnalishda jerebyovka allaqachon oʻtkazilgan. Avval bekor qiling.",
-        );
-      }
-
-      // Faqat check-in qilingan jamoalar qatnashadi
-      const teams = await tx
-        .select({
-          id: schema.teams.id,
-          name: schema.teams.name,
-          school: schema.teams.school,
-          number: schema.teams.number,
-        })
-        .from(schema.teams)
-        .where(
-          and(
-            eq(schema.teams.categoryCode, categoryCode),
-            isNotNull(schema.teams.checkedInAt),
-          ),
-        )
-        .orderBy(asc(schema.teams.numberSeq));
-
-      if (teams.length < 2) {
-        throw new Error(
-          `Jerebyovka uchun kamida 2 ta check-in qilingan jamoa kerak (hozir ${teams.length} ta).`,
-        );
-      }
-
-      const seed = createSeed();
-      const drawTeams: DrawTeam[] = teams.map((t) => ({
-        id: t.id,
-        name: t.name,
-        school: t.school,
-      }));
-
-      let warnings: string[] = [];
-      let resultJson: unknown;
-      let summary: string;
-
-      if (category.format === "group_playoff") {
-        const out = await drawGroupStage(tx, categoryCode, drawTeams, settings.groupSize, seed);
-        warnings = out.warnings;
-        resultJson = out.resultJson;
-        summary = out.summary;
-      } else if (category.format === "single_elim") {
-        const out = await drawSingleElim(tx, categoryCode, drawTeams, seed, settings.fieldCount);
-        resultJson = out.resultJson;
-        summary = out.summary;
-      } else {
-        const out = drawStartOrder(drawTeams, seed);
-        resultJson = out.resultJson;
-        summary = out.summary;
-      }
-
-      await tx.insert(schema.draws).values({
-        categoryCode,
-        seed,
-        teamIds: teams.map((t) => t.id),
-        resultJson,
-        warnings,
-        createdBy: admin.name,
-      });
-
-      await tx
-        .update(schema.categories)
-        .set({ drawLocked: true })
-        .where(eq(schema.categories.code, categoryCode));
-
-      await tx.insert(schema.auditLog).values({
-        actor: admin.name,
-        action: "draw.run",
-        entity: "category",
-        entityId: categoryCode,
-        after: { seed, teamCount: teams.length, summary },
-      });
-
-      await emit(tx, categoryCode, "draw.completed", {
-        categoryCode,
-        teamCount: teams.length,
-        summary,
-      });
-
-      return { seed, warnings, summary };
-    });
+    const result = await db.transaction((tx) => performDraw(tx, categoryCode, admin.name));
 
     revalidatePath("/admin/draw");
     revalidatePath(`/jonli/${category.slug}`);
@@ -137,6 +44,115 @@ export async function runDraw(categoryCode: string): Promise<DrawState> {
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+}
+
+/**
+ * Jerebyovkaning oʻzi — ruxsat tekshiruvisiz.
+ *
+ * Server Action'dan ham, skriptdan ham (`scripts/test-draw.ts`) chaqiriladi.
+ * Ikki nusxa mantiq boʻlmasligi uchun ajratilgan: sinovdagi jerebyovka
+ * musobaqadagisi bilan AYNI kod boʻlishi kerak, aks holda sinov hech
+ * narsani isbotlamaydi.
+ */
+export async function performDraw(
+  tx: Tx,
+  categoryCode: CategoryCode,
+  actor: string,
+): Promise<{ seed: string; warnings: string[]; summary: string }> {
+  const category = CATEGORIES[categoryCode];
+
+  // Yo'nalish qatorini qulflaymiz — ikki admin bir vaqtda bosa olmaydi
+  const [settings] = await tx
+    .select()
+    .from(schema.categories)
+    .where(eq(schema.categories.code, categoryCode))
+    .for("update");
+
+  if (!settings) throw new Error("Yoʻnalish topilmadi");
+  if (settings.drawLocked) {
+    throw new Error(
+      "Bu yoʻnalishda jerebyovka allaqachon oʻtkazilgan. Avval bekor qiling.",
+    );
+  }
+
+  // Faqat check-in qilingan jamoalar qatnashadi
+  const teams = await tx
+    .select({
+      id: schema.teams.id,
+      name: schema.teams.name,
+      school: schema.teams.school,
+      number: schema.teams.number,
+    })
+    .from(schema.teams)
+    .where(
+      and(
+        eq(schema.teams.categoryCode, categoryCode),
+        isNotNull(schema.teams.checkedInAt),
+      ),
+    )
+    .orderBy(asc(schema.teams.numberSeq));
+
+  if (teams.length < 2) {
+    throw new Error(
+      `Jerebyovka uchun kamida 2 ta check-in qilingan jamoa kerak (hozir ${teams.length} ta).`,
+    );
+  }
+
+  const seed = createSeed();
+  const drawTeams: DrawTeam[] = teams.map((t) => ({
+    id: t.id,
+    name: t.name,
+    school: t.school,
+  }));
+
+  let warnings: string[] = [];
+  let resultJson: unknown;
+  let summary: string;
+
+  if (category.format === "group_playoff") {
+    const out = await drawGroupStage(tx, categoryCode, drawTeams, settings.groupSize, seed);
+    warnings = out.warnings;
+    resultJson = out.resultJson;
+    summary = out.summary;
+  } else if (category.format === "single_elim") {
+    const out = await drawSingleElim(tx, categoryCode, drawTeams, seed, settings.fieldCount);
+    resultJson = out.resultJson;
+    summary = out.summary;
+  } else {
+    const out = drawStartOrder(drawTeams, seed);
+    resultJson = out.resultJson;
+    summary = out.summary;
+  }
+
+  await tx.insert(schema.draws).values({
+    categoryCode,
+    seed,
+    teamIds: teams.map((t) => t.id),
+    resultJson,
+    warnings,
+    createdBy: actor,
+  });
+
+  await tx
+    .update(schema.categories)
+    .set({ drawLocked: true })
+    .where(eq(schema.categories.code, categoryCode));
+
+  await tx.insert(schema.auditLog).values({
+    actor,
+    action: "draw.run",
+    entity: "category",
+    entityId: categoryCode,
+    after: { seed, teamCount: teams.length, summary },
+  });
+
+  await emit(tx, categoryCode, "draw.completed", {
+    categoryCode,
+    teamCount: teams.length,
+    summary,
+  });
+
+  return { seed, warnings, summary };
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
