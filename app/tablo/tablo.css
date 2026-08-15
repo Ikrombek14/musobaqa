@@ -1,0 +1,921 @@
+/* ============================================================
+   KATTA EKRAN TABLOSI — 1920×1080 kanvas
+   ============================================================
+
+   Bu sahifa saytning qolgan qismidan mustaqil: oʻz tokenlari, oʻz
+   grid'i. Sabab — u proyektorga chiqadi va u yerda boshqa qoidalar
+   ishlaydi (uzoqdan oʻqish, scroll yoʻq, sichqoncha yoʻq).
+
+   ENG MUHIM QOIDA: hech bir blok boshqasining ustiga chiqmaydi.
+   Buning uchun har bir grid/flex farzandida `min-height:0` va
+   `min-width:0` bor — busiz CSS Grid kontentni siqmaydi va blok
+   tashqariga toshib chiqadi. Har panelda `overflow:hidden`.
+   ============================================================ */
+
+.tablo {
+  --bg: #0a0e14;
+  --surface: #121822;
+  --surface-2: #18202c;
+  --surface-3: #1f2937;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  --text: #f2f5fa;
+  --text-muted: #93a1b5;
+  --text-subtle: #64748b;
+
+  --live: #ef4444;
+  --gold: #fbbf24;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+
+  height: 100%;
+  background: #000;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+.tablo-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: center center;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(59, 130, 246, 0.1), transparent 60%),
+    radial-gradient(1000px 500px at 90% 110%, rgba(249, 115, 22, 0.08), transparent 60%),
+    var(--bg);
+  display: grid;
+  grid-template-rows: 84px 292px 1fr 56px;
+  gap: var(--s5);
+  padding: var(--s6) var(--s8);
+}
+
+/* Har bir bevosita farzand siqilishi mumkin boʻlsin */
+.tablo-stage > * {
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ---------------- Header ---------------- */
+.tb-hdr {
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+  min-width: 0;
+}
+.tb-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-right: var(--s6);
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tb-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--r-md);
+  background: linear-gradient(145deg, #fbbf24, #f97316);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.tb-logo svg {
+  width: 28px;
+  height: 28px;
+  color: #0a0e14;
+}
+.tb-brand b {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: block;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.tb-brand span {
+  font-size: 13px;
+  color: var(--text-subtle);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tb-title {
+  min-width: 0;
+}
+.tb-title h1 {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-title .tb-date {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tb-hdr-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  flex-shrink: 0;
+}
+.tb-stat {
+  text-align: right;
+  padding-left: var(--s5);
+  border-left: 1px solid var(--border);
+  min-width: 92px;
+}
+.tb-stat b {
+  display: block;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.tb-stat span {
+  font-size: 12px;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tb-clock {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  min-width: 108px;
+  display: block;
+}
+
+.tb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 7px 14px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tb-chip[data-offline="true"] {
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #cbd5e1;
+}
+.tb-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: tb-pulse 1.6s infinite;
+  flex-shrink: 0;
+}
+@keyframes tb-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+/* ---------------- Boʻlim sarlavhasi ---------------- */
+.tb-sec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.tb-sec::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.tb-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ---------------- Jonli oʻyinlar ---------------- */
+.tb-live-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 336px;
+  gap: var(--s4);
+  min-height: 0;
+  flex: 1;
+}
+.tb-live-row > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+.tb-match {
+  position: relative;
+  overflow: hidden;
+  /* Burchakdagi yorugʻlik gradient bilan — ilgari `::after` doira edi va
+     kartochkadan chiqib `scrollWidth` ni oshirardi (matn kesilyapti degan
+     yolgʻon signal). Gradient oʻlchamga taʼsir qilmaydi. */
+  background:
+    radial-gradient(
+      260px 260px at calc(100% + 30px) -30px,
+      color-mix(in srgb, var(--accent) 13%, transparent),
+      transparent 70%
+    ),
+    var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tb-match::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--accent);
+}
+.tb-m-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  position: relative;
+  min-width: 0;
+}
+.tb-m-tag {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tb-m-stage {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tb-m-timer {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fca5a5;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 74px;
+  justify-content: flex-end;
+}
+.tb-m-timer[data-idle="true"] {
+  color: var(--text-subtle);
+}
+
+.tb-m-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s3);
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+.tb-team {
+  min-width: 0;
+}
+.tb-team.r {
+  text-align: right;
+}
+.tb-t-name {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tb-t-sub {
+  font-size: 13px;
+  color: var(--text-subtle);
+  margin-top: 5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-score {
+  font-size: 58px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  padding: 0 var(--s4);
+  white-space: nowrap;
+  min-width: 120px;
+  text-align: center;
+}
+.tb-score .sep {
+  color: var(--text-subtle);
+  font-weight: 600;
+  margin: 0 6px;
+  font-size: 40px;
+  vertical-align: middle;
+}
+.tb-m-foot {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+  position: relative;
+  min-width: 0;
+}
+.tb-m-foot span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-m-foot .field {
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+/* Boʻsh holat */
+.tb-empty {
+  grid-column: 1 / 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s6);
+  text-align: center;
+}
+.tb-empty b {
+  font-size: 24px;
+  font-weight: 700;
+}
+.tb-empty span {
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+/* ---------------- Navbat ---------------- */
+.tb-queue {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+.tb-q-head {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+.tb-q-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+.tb-q-item:last-child {
+  border-bottom: 0;
+}
+.tb-q-bar {
+  width: 3px;
+  height: 34px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.tb-q-txt {
+  min-width: 0;
+}
+.tb-q-txt b {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-q-txt span {
+  font-size: 12px;
+  color: var(--text-subtle);
+  font-weight: 600;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------------- Yoʻnalish panellari ---------------- */
+.tb-disc-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--s4);
+  min-height: 0;
+  flex: 1;
+}
+.tb-disc-row > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+.tb-disc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+.tb-d-head {
+  padding: var(--s4) var(--s5) var(--s3);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  flex-shrink: 0;
+}
+.tb-d-head::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+.tb-d-name {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-d-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  min-width: 0;
+}
+.tb-d-stage {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tb-d-count {
+  font-size: 12px;
+  color: var(--text-subtle);
+  font-weight: 600;
+  margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tb-prog {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  margin-top: 11px;
+  overflow: hidden;
+}
+.tb-prog i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Aylanadigan sahifa nomi + nuqtalar */
+.tb-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--s5) 0;
+  min-width: 0;
+  flex-shrink: 0;
+}
+.tb-pager-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  transition: opacity 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tb-dots {
+  display: flex;
+  gap: 5px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.tb-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  transition: background 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tb-dots i[data-on="true"] {
+  background: var(--accent);
+}
+
+.tb-d-body {
+  flex: 1;
+  padding: var(--s3) var(--s5);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Aylanish: bitta konteyner, opacity + siljish. Absolute yoʻq. */
+.tb-fade {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 400ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tb-fade[data-out="true"] {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.tb-cols {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  padding: 0 0 9px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tb-rows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 0;
+}
+.tb-row {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  min-width: 0;
+}
+.tb-row:last-child {
+  border-bottom: 0;
+}
+/* Balandlik oʻzgarmasin — yetishmagan qator koʻrinmas boʻlib turadi */
+.tb-row[data-empty="true"] {
+  visibility: hidden;
+}
+.tb-row[data-top="true"] {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 10%, transparent),
+    transparent
+  );
+  margin: 0 -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+  border-radius: 8px;
+}
+.tb-pos {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.tb-row[data-top="true"] .tb-pos {
+  background: var(--accent);
+  color: #0a0e14;
+}
+.tb-nm {
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tb-nm small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-subtle);
+  font-weight: 600;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tb-num {
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.tb-num.pts {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text);
+}
+.tb-num.time {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.g-table {
+  grid-template-columns: 26px minmax(0, 1fr) 30px 30px 34px 42px;
+}
+.g-ko {
+  grid-template-columns: 26px minmax(0, 1fr) 52px 74px;
+}
+.g-time {
+  grid-template-columns: 26px minmax(0, 1fr) 44px 78px;
+}
+
+.tb-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.b-in {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.b-out {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-subtle);
+  border: 1px solid var(--border);
+}
+.b-play {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.tb-d-next {
+  margin: 0 var(--s5) var(--s4);
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+.tb-d-next .lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  flex-shrink: 0;
+}
+.tb-d-next .val {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ---------------- Ticker ---------------- */
+.tb-ticker {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  min-width: 0;
+}
+.tb-tk-label {
+  flex-shrink: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 var(--s5);
+  background: linear-gradient(90deg, #fbbf24, #f97316);
+  color: #0a0e14;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tb-tk-wrap {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 40px,
+    #000 calc(100% - 40px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 40px,
+    #000 calc(100% - 40px),
+    transparent 100%
+  );
+}
+.tb-tk-track {
+  display: flex;
+  gap: 44px;
+  white-space: nowrap;
+  animation: tb-slide 46s linear infinite;
+  padding-left: 40px;
+}
+.tb-tk-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.tb-tk-item b {
+  color: var(--text);
+  font-weight: 700;
+}
+.tb-tk-item i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  font-style: normal;
+  flex-shrink: 0;
+}
+@keyframes tb-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ---------------- Skeleton ---------------- */
+.tb-skel {
+  background: var(--surface-3);
+  border-radius: 6px;
+  animation: tb-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes tb-shimmer {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tb-tk-track,
+  .tb-dot,
+  .tb-skel {
+    animation: none;
+  }
+  .tb-fade {
+    transition: none;
+  }
+}
