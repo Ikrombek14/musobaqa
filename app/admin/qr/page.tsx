@@ -42,10 +42,12 @@ export default async function QrPage() {
 
   const judgeUrl = `${base}/hakam`;
   const adminUrl = `${base}/admin`;
+  const publicUrl = base; // bosh sahifa — barcha yoʻnalish natijalari
 
-  const [judgeQr, adminQr, judges] = await Promise.all([
+  const [judgeQr, adminQr, publicQr, judges] = await Promise.all([
     qrSvg(judgeUrl),
     qrSvg(adminUrl),
+    qrSvg(publicUrl),
     listJudges(),
   ]);
 
@@ -65,7 +67,35 @@ export default async function QrPage() {
         <PrintButton />
       </div>
 
-      {/* Asosiy ikkita kod */}
+      {/*
+        Ota-onalar uchun afisha — devorga osiladi.
+        Alohida va katta: uni zaldan, bir necha metrdan skanerlashadi,
+        shuning uchun kod boshqalaridan ikki barobar yirik.
+      */}
+      <Card className="break-inside-avoid p-6 print:border print:border-[#ccc]">
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-8">
+          <div
+            className="size-64 shrink-0 [&>svg]:size-full"
+            dangerouslySetInnerHTML={{ __html: publicQr }}
+          />
+          <div className="min-w-0 text-center sm:text-left">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              Ota-onalar va tomoshabinlar uchun
+            </p>
+            <h2 className="mt-1 text-3xl font-bold tracking-tight">
+              Natijalarni telefoningizda kuzating
+            </h2>
+            <p className="mt-2 max-w-[46ch] text-[var(--text-muted)]">
+              Kamerani QR kodga toʻgʻrilang. Barcha yoʻnalish boʻyicha jonli
+              jadval: kim kim bilan oʻynayapti, hisob va gʻoliblar. Hakam
+              natijani yozishi bilan sahifa oʻzi yangilanadi.
+            </p>
+            <p className="mt-3 font-mono text-lg font-bold">{publicUrl.replace(/^https?:\/\//, "")}</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Xodimlar uchun */}
       <div className="grid gap-5 sm:grid-cols-2">
         <QrCard
           title="Hakam paneli"
