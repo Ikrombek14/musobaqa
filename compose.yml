@@ -68,6 +68,8 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-qara_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-qara}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET .env da boʻlishi shart}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD .env da boʻlishi shart}
+      # Roʻyxatdan oʻtkazish stoli uchun shaxsiy hisoblar: ism:parol,ism:parol
+      ADMIN_USERS: ${ADMIN_USERS:-}
       UPLOAD_DIR: /app/uploads
       NODE_ENV: production
       TZ: Asia/Tashkent
