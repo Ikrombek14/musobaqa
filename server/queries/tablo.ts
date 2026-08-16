@@ -60,6 +60,13 @@ export type TabloRow = {
 
 export type TabloPage = { nom: string; qatorlar: TabloRow[] };
 
+export type TabloMedal = {
+  orin: 1 | 2 | 3;
+  jamoa: string;
+  filial: string | null;
+  raqam: string | null;
+};
+
 export type TabloCategory = {
   kalit: CategoryCode;
   nom: string;
@@ -69,6 +76,8 @@ export type TabloCategory = {
   tur: "guruh" | "ko" | "vaqt";
   sahifalar: TabloPage[];
   keyingiOyin: string | null;
+  /** Musobaqa tugagan boʻlsa — 1, 2, 3-oʻrinlar */
+  medallar: TabloMedal[];
 };
 
 export type TabloData = {
@@ -289,6 +298,7 @@ export async function getTabloData(): Promise<TabloData> {
         tur: "vaqt",
         sahifalar: paginate(qatorlar, "Reyting"),
         keyingiOyin: null,
+        medallar: medalsFromRanking(qatorlar, catTeams.length),
       };
     }
 
@@ -338,6 +348,7 @@ export async function getTabloData(): Promise<TabloData> {
           tur: "guruh",
           sahifalar,
           keyingiOyin,
+          medallar: [],
         };
       }
     }
@@ -347,19 +358,24 @@ export async function getTabloData(): Promise<TabloData> {
     const source = bracket.length > 0 ? bracket : catMatches;
     const qatorlar = knockoutRows(source, catTeams, teamById);
 
+    const medallar = medalsFromBracket(bracket, totalRounds, teamById);
+
     return {
       kalit: code,
       nom: category.name,
       bosqich: !locked
         ? "Jerebyovka kutilmoqda"
-        : bracket.length > 0
-          ? deepestLabel(bracket, totalRounds)
-          : "Guruh bosqichi",
+        : medallar.length > 0
+          ? "Yakunlandi"
+          : bracket.length > 0
+            ? deepestLabel(bracket, totalRounds)
+            : "Guruh bosqichi",
       bajarildi: done,
       jami: catMatches.length,
       tur: "ko",
       sahifalar: paginate(qatorlar, "Holat"),
       keyingiOyin,
+      medallar,
       // advance faqat guruh koʻrinishida ishlatiladi
       ...(advance ? {} : {}),
     };
@@ -478,6 +494,64 @@ function knockoutRows(
         a.jamoa.localeCompare(b.jamoa),
     )
     .map(({ _win, _playing, ...row }) => row);
+}
+
+/**
+ * Toʻr tugagan boʻlsa — 1, 2, 3-oʻrin.
+ *
+ * 1-oʻrin: final gʻolibi. 2-oʻrin: finalda yutqazgan.
+ * 3-oʻrin: bronza oʻyini gʻolibi (u boʻlmasa koʻrsatilmaydi).
+ */
+function medalsFromBracket(
+  bracket: {
+    round: number;
+    status: string;
+    thirdPlace: boolean;
+    winnerId: number | null;
+    teamAId: number | null;
+    teamBId: number | null;
+  }[],
+  totalRounds: number,
+  teamById: Map<number, { name: string; school: string | null; number: string | null }>,
+): TabloMedal[] {
+  if (bracket.length === 0 || totalRounds === 0) return [];
+
+  const final = bracket.find((m) => m.round === totalRounds && !m.thirdPlace);
+  if (!final || final.status !== "done" || !final.winnerId) return [];
+
+  const medal = (orin: 1 | 2 | 3, teamId: number | null): TabloMedal | null => {
+    if (!teamId) return null;
+    const team = teamById.get(teamId);
+    if (!team) return null;
+    return { orin, jamoa: team.name, filial: team.school, raqam: team.number };
+  };
+
+  const runnerUp =
+    final.winnerId === final.teamAId ? final.teamBId : final.teamAId;
+  const bronze = bracket.find((m) => m.thirdPlace && m.status === "done");
+
+  return [
+    medal(1, final.winnerId),
+    medal(2, runnerUp),
+    bronze ? medal(3, bronze.winnerId) : null,
+  ].filter((m): m is TabloMedal => m !== null);
+}
+
+/** Vaqt reytingi: hamma urinishini tugatgan boʻlsa — tepadagi uchtasi. */
+function medalsFromRanking(rows: TabloRow[], teamCount: number): TabloMedal[] {
+  const finished =
+    teamCount > 0 && rows.length === teamCount && rows.every((r) => (r.urinish ?? 0) >= 2);
+  if (!finished) return [];
+
+  return rows
+    .filter((r) => r.vaqt && r.vaqt !== "—" && r.vaqt !== "DNF")
+    .slice(0, 3)
+    .map((r, i) => ({
+      orin: (i + 1) as 1 | 2 | 3,
+      jamoa: r.jamoa,
+      filial: r.filial,
+      raqam: r.raqam,
+    }));
 }
 
 /** Panelga sigʻadigan qilib sahifalarga boʻladi (aylanish uchun). */

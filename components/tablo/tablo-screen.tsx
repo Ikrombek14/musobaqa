@@ -304,7 +304,7 @@ function DisciplinePanel({ cat }: { cat: TabloCategory }) {
         </div>
       </div>
 
-      {page && (
+      {page && cat.medallar.length === 0 && (
         <div className="tb-pager">
           <span className="tb-pager-name" style={{ opacity: rot.fading ? 0 : 1 }}>
             {page.nom}
@@ -314,7 +314,9 @@ function DisciplinePanel({ cat }: { cat: TabloCategory }) {
       )}
 
       <div className="tb-d-body">
-        {!page ? (
+        {cat.medallar.length > 0 ? (
+          <Medals medals={cat.medallar} />
+        ) : !page ? (
           <Skeleton />
         ) : (
           <div className="tb-fade" data-out={rot.fading ? "true" : undefined}>
@@ -431,6 +433,34 @@ function RowLine({
           </span>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Yakuniy oʻrinlar.
+ *
+ * Musobaqa tugagan yoʻnalishda jadval oʻrniga shu koʻrinadi — zaldagi
+ * odam «kim gʻolib boʻldi» degan savolga darhol javob olishi kerak,
+ * turnir jadvalini oʻqib chiqmasdan.
+ */
+function Medals({ medals }: { medals: TabloCategory["medallar"] }) {
+  const color = ["#FBBF24", "#CBD5E1", "#D9884A"];
+  return (
+    <div className="tb-medals">
+      {medals.map((m) => (
+        <div className="tb-medal" key={m.orin}>
+          <span className="tb-medal-pos" style={{ background: color[m.orin - 1] }}>
+            {m.orin}
+          </span>
+          <span className="tb-medal-name">
+            {m.jamoa}
+            {(m.raqam || m.filial) && (
+              <small>{[m.raqam, m.filial].filter(Boolean).join(" · ")}</small>
+            )}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
