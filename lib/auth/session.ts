@@ -49,6 +49,26 @@ export function checkAdminPassword(password: string): boolean {
   return safeEqual(password, env.ADMIN_PASSWORD);
 }
 
+/**
+ * Parolga qarab admin ismini aniqlaydi.
+ *
+ * Umumiy parol (`ADMIN_PASSWORD`) bilan kirilsa — odam oʻzi yozgan ism
+ * ishlatiladi. Shaxsiy parol (`ADMIN_USERS`) bilan kirilsa — roʻyxatdagi
+ * ism, chunki audit jurnalida kim ekani aniq boʻlishi kerak.
+ *
+ * `null` — parol notoʻgʻri.
+ */
+export function resolveAdminName(password: string, typedName: string): string | null {
+  if (checkAdminPassword(password)) return typedName.trim() || "Admin";
+
+  for (const entry of (env.ADMIN_USERS ?? "").split(",")) {
+    const [name, secret] = entry.split(":");
+    if (!name || !secret) continue;
+    if (safeEqual(password, secret.trim())) return name.trim();
+  }
+  return null;
+}
+
 /* ------------------------------------------------------------------ */
 /* Server Action / sahifa himoyasi                                     */
 /*                                                                     */

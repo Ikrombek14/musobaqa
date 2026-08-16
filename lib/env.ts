@@ -6,6 +6,14 @@ const schema = z.object({
   /** iron-session uchun, kamida 32 belgi */
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET kamida 32 belgi boʻlsin"),
   ADMIN_PASSWORD: z.string().min(4, "ADMIN_PASSWORD kerak"),
+  /**
+   * Qoʻshimcha admin hisoblari: `ism:parol,ism:parol`.
+   *
+   * Roʻyxatdan oʻtkazish stolida bir necha odam ishlaydi va har biri oʻz
+   * paroli bilan kirsin — audit jurnalida kim nima qilgani aniq qoladi.
+   * Boʻsh boʻlsa faqat ADMIN_PASSWORD ishlaydi.
+   */
+  ADMIN_USERS: z.string().optional(),
   UPLOAD_DIR: z.string().default("./uploads"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });

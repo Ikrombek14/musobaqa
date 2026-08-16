@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { checkAdminPassword, getSession } from "@/lib/auth/session";
+import { getSession, resolveAdminName } from "@/lib/auth/session";
 import { db, schema } from "@/lib/db";
 
 export type LoginState = { error?: string };
@@ -16,11 +16,12 @@ export async function adminLogin(
   formData: FormData,
 ): Promise<LoginState> {
   const password = String(formData.get("password") ?? "");
-  const name = String(formData.get("name") ?? "").trim() || "Admin";
+  const typed = String(formData.get("name") ?? "");
 
   if (!password) return { error: "Parolni kiriting" };
 
-  if (!checkAdminPassword(password)) {
+  const name = resolveAdminName(password, typed);
+  if (!name) {
     await delay(600);
     return { error: "Parol notoʻgʻri" };
   }
